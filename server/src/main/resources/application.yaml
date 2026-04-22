@@ -1,0 +1,46 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ihub-bidding-service
+  elasticsearch:
+    uris: http://localhost:9200
+    username: elastic
+    password: elastic123
+
+  # MySQL Database Configuration
+  datasource:
+    # Add your database name (ihub_db) after the slash
+    url: jdbc:mysql://localhost:3306/ihub
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # JdbcTemplate & SQL Settings
+  jdbc:
+    template:
+      query-timeout: 30s
+  
+  # Manual SQL Script Initialization (Optional but helpful)
+  sql:
+    init:
+      mode: always
+      platform: mysql
+
+  # JWT Security Properties
+  security:
+    jwt:
+      secret: ${JWT_SECRET:your_very_long_random_secret_key_for_ihub_2026_secured}
+      expiration: 86400000 
+
+# Custom Auction Scheduling
+auction:
+  cron:
+    start: "0 0 18 * * FRI"
+    end: "0 0 23 * * FRI"
+
+logging:
+  level:
+    root: INFO
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
