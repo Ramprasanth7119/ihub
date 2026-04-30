@@ -1,10 +1,8 @@
 package com.ihub.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
-@AllArgsConstructor
 public class BidResponse {
 
     private String message;

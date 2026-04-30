@@ -3,7 +3,6 @@ package com.ihub.controller;
 import com.ihub.dto.AuctionRequest;
 import com.ihub.dto.AuctionResponse;
 import com.ihub.service.AuctionService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,12 +12,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/auctions")
-@RequiredArgsConstructor
 public class AuctionController {
 
     private final AuctionService auctionService;
 
-    
     public AuctionController(AuctionService auctionService) {
 		super();
 		this.auctionService = auctionService;

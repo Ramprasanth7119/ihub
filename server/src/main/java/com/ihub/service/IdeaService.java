@@ -7,7 +7,6 @@ import com.ihub.exception.CustomException;
 import com.ihub.model.Idea;
 import com.ihub.search.IdeaDocument;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
  * - Elasticsearch indexing
  */
 @Service
-@RequiredArgsConstructor
 public class IdeaService {
 
     private final IdeaDao ideaDao;

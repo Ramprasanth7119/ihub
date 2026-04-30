@@ -5,20 +5,16 @@ import com.ihub.dto.LoginRequest;
 import com.ihub.dto.AuthResponse;
 import com.ihub.exception.CustomException;
 import com.ihub.security.JwtUtil;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
     private final AuthDao authDao;
     private final JwtUtil jwtUtil;
-    
-    
 
     public AuthService(AuthDao authDao, JwtUtil jwtUtil) {
 		super();

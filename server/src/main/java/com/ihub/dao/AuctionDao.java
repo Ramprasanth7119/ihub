@@ -3,7 +3,6 @@ package com.ihub.dao;
 import com.ihub.dto.AuctionRequest;
 import com.ihub.mapper.AuctionRowMapper;
 import com.ihub.model.Auction;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.*;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -16,13 +15,10 @@ import java.util.Map;
  * DAO for auction operations
  */
 @Repository
-@RequiredArgsConstructor
 public class AuctionDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final AuctionRowMapper auctionRowMapper;
-    
-    
 
     public AuctionDao(NamedParameterJdbcTemplate jdbcTemplate, AuctionRowMapper auctionRowMapper) {
 		super();

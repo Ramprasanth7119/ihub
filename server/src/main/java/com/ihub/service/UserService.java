@@ -4,8 +4,6 @@ import com.ihub.dao.UserDao;
 import com.ihub.dto.UserRequest;
 import com.ihub.dto.UserResponse;
 import com.ihub.model.User;
-import lombok.RequiredArgsConstructor;
-
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +14,6 @@ import java.util.stream.Collectors;
  * Service layer for user business logic
  */
 @Service
-@RequiredArgsConstructor
 public class UserService {
 
     private final UserDao userDao;

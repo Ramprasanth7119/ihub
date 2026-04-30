@@ -1,13 +1,11 @@
 package com.ihub.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 /**
  * DTO for returning idea details
  */
 @Data
-@AllArgsConstructor
 public class IdeaResponse {
 
     private Long id;

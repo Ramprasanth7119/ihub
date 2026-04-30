@@ -1,6 +1,5 @@
 package com.ihub.dao;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -14,20 +13,17 @@ import java.util.Map;
  * DAO for auction lifecycle operations
  */
 @Repository
-@RequiredArgsConstructor
 public class AuctionLifecycleDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final AuctionRowMapper auctionRowMapper;
 
+    public AuctionLifecycleDao(NamedParameterJdbcTemplate jdbcTemplate, AuctionRowMapper auctionRowMapper) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.auctionRowMapper = auctionRowMapper;
+    }
 
-	public AuctionLifecycleDao(NamedParameterJdbcTemplate jdbcTemplate, AuctionRowMapper auctionRowMapper) {
-		super();
-		this.jdbcTemplate = jdbcTemplate;
-		this.auctionRowMapper = auctionRowMapper;
-	}
-
-	/**
+    /**
      * Activate auctions
      */
     public void activateAuctions() {
@@ -93,12 +89,12 @@ public class AuctionLifecycleDao {
     }
     
     public List<Auction> getScheduledAuctions() {
-        String sql = "SELECT id, idea_id FROM auctions WHERE status = 'SCHEDULED'";
+        String sql = "SELECT * FROM auctions WHERE status = 'SCHEDULED'";
         return jdbcTemplate.query(sql, auctionRowMapper);
     }
 
     public List<Auction> getActiveAuctions() {
-        String sql = "SELECT id, idea_id FROM auctions WHERE status = 'ACTIVE'";
+        String sql = "SELECT * FROM auctions WHERE status = 'ACTIVE'";
         return jdbcTemplate.query(sql, auctionRowMapper);
     }
 }

@@ -7,8 +7,6 @@ import com.ihub.dto.BidResponse;
 import com.ihub.exception.CustomException;
 import com.ihub.model.User;
 
-import lombok.RequiredArgsConstructor;
-
 import java.util.List;
 import java.util.Map;
 
@@ -25,11 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
  * - Real-time leaderboard updates
  */
 @Service
-@RequiredArgsConstructor
 public class BidService {
 
     private final BidDao bidDao;
-    private final UserDao userDao; // ✅ inject properly
+    private final UserDao userDao;
     private final BidBroadcastService broadcastService;
 
     public BidService(BidDao bidDao, UserDao userDao, BidBroadcastService broadcastService) {

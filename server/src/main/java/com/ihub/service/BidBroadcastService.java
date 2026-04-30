@@ -1,7 +1,5 @@
 package com.ihub.service;
 
-import lombok.RequiredArgsConstructor;
-
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +12,6 @@ import com.ihub.dto.BidUpdate;
  * Sends real-time bid updates to clients
  */
 @Service
-@RequiredArgsConstructor
 public class BidBroadcastService {
 
     private final SimpMessagingTemplate messagingTemplate;

@@ -3,7 +3,6 @@ package com.ihub.service;
 import com.ihub.dao.AuctionLifecycleDao;
 import com.ihub.model.Auction;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +16,10 @@ import java.util.Map;
  * - Sync with Elasticsearch
  */
 @Service
-@RequiredArgsConstructor
 public class AuctionLifecycleService {
 
     private final AuctionLifecycleDao lifecycleDao;
-    private final IdeaSearchService ideaSearchService; // ✅ NEW
-    
-    
+    private final IdeaSearchService ideaSearchService;
 
     public AuctionLifecycleService(AuctionLifecycleDao lifecycleDao, IdeaSearchService ideaSearchService) {
 		super();

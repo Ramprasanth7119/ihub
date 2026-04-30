@@ -3,7 +3,6 @@ package com.ihub.controller;
 import com.ihub.dto.IdeaRequest;
 import com.ihub.dto.IdeaResponse;
 import com.ihub.service.IdeaService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,12 +12,9 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/ideas")
-@RequiredArgsConstructor
 public class IdeaController {
 
     private final IdeaService ideaService;
-    
-    
 
     public IdeaController(IdeaService ideaService) {
 		super();
