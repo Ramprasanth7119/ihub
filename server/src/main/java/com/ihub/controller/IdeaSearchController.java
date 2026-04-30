@@ -2,19 +2,15 @@ package com.ihub.controller;
 
 import com.ihub.search.IdeaDocument;
 import com.ihub.service.IdeaSearchService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/search")
-@RequiredArgsConstructor
 public class IdeaSearchController {
 
     private final IdeaSearchService service;
-    
-    
 
     public IdeaSearchController(IdeaSearchService service) {
 		super();

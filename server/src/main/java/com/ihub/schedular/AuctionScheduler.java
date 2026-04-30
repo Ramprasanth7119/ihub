@@ -1,7 +1,6 @@
 package com.ihub.schedular;
 
 import com.ihub.service.AuctionLifecycleService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -9,7 +8,6 @@ import org.springframework.stereotype.Component;
  * Handles scheduled auction lifecycle events
  */
 @Component
-@RequiredArgsConstructor
 public class AuctionScheduler {
 
     private final AuctionLifecycleService lifecycleService;

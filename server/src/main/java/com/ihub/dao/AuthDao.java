@@ -1,18 +1,14 @@
 package com.ihub.dao;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
 
 @Repository
-@RequiredArgsConstructor
 public class AuthDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    
-    
 
     public AuthDao(NamedParameterJdbcTemplate jdbcTemplate) {
 		super();

@@ -1,6 +1,5 @@
 package com.ihub.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -9,7 +8,6 @@ import java.time.LocalDateTime;
  * DTO for auction response
  */
 @Data
-@AllArgsConstructor
 public class AuctionResponse {
 
     private Long id;

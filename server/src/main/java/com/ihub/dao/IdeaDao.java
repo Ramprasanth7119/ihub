@@ -3,7 +3,6 @@ package com.ihub.dao;
 import com.ihub.dto.IdeaRequest;
 import com.ihub.mapper.IdeaRowMapper;
 import com.ihub.model.Idea;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.*;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -16,13 +15,10 @@ import java.util.Map;
  * DAO layer for Idea operations
  */
 @Repository
-@RequiredArgsConstructor
 public class IdeaDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final IdeaRowMapper ideaRowMapper;
-    
-    
 
     public IdeaDao(NamedParameterJdbcTemplate jdbcTemplate, IdeaRowMapper ideaRowMapper) {
 		super();

@@ -5,7 +5,6 @@ import com.ihub.dto.AuctionRequest;
 import com.ihub.dto.AuctionResponse;
 import com.ihub.exception.CustomException;
 import com.ihub.model.Auction;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,12 +14,9 @@ import java.util.stream.Collectors;
  * Business logic for auction
  */
 @Service
-@RequiredArgsConstructor
 public class AuctionService {
 
     private final AuctionDao auctionDao;
-    
-    
 
     public AuctionService(AuctionDao auctionDao) {
 		super();
