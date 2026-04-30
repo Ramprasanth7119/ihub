@@ -19,12 +19,11 @@ public class AuctionLifecycleDao {
     private final AuctionRowMapper auctionRowMapper;
 
     public AuctionLifecycleDao(NamedParameterJdbcTemplate jdbcTemplate, AuctionRowMapper auctionRowMapper) {
-		super();
-		this.jdbcTemplate = jdbcTemplate;
-		this.auctionRowMapper = auctionRowMapper;
-	}
+        this.jdbcTemplate = jdbcTemplate;
+        this.auctionRowMapper = auctionRowMapper;
+    }
 
-	/**
+    /**
      * Activate auctions
      */
     public void activateAuctions() {
