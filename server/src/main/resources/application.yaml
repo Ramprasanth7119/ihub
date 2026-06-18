@@ -31,14 +31,40 @@ spring:
   # JWT Security Properties
   security:
     jwt:
-      secret: ${JWT_SECRET:your_very_long_random_secret_key_for_ihub_2026_secured}
-      expiration: 86400000 
+      secret: thecrazyfoxjumpsoverthelazybrownfox1309
+      expiration: 3600000
+      refresh-expiration: 604800000
 
-# Custom Auction Scheduling
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Auction lifecycle scheduler (checks start_time / end_time every minute)
 auction:
   cron:
-    start: "0 0 18 * * FRI"
-    end: "0 0 23 * * FRI"
+    lifecycle: "0 */1 * * * *"
+  default-min-bid-increment: 100
+
+search:
+  default-page-size: 20
+  max-page-size: 100
+
+ihub:
+  notification:
+    email-enabled: false
+    from-address: noreply@ihub.local
+    outbox:
+      batch-size: 20
+      max-attempts: 3
+      cron: "0 */2 * * * *"
 
 logging:
   level:

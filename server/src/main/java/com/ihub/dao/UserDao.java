@@ -17,7 +17,6 @@ import java.util.Map;
  * DAO layer for user-related DB operations
  */
 @Repository
-@RequiredArgsConstructor
 public class UserDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;

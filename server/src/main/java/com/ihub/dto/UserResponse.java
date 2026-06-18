@@ -1,13 +1,8 @@
 package com.ihub.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
 /**
  * DTO for sending user data in response
  */
-@Data
-@AllArgsConstructor
 public class UserResponse {
 
     private Long id;

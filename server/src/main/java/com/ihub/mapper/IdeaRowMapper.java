@@ -23,6 +23,8 @@ public class IdeaRowMapper implements RowMapper<Idea> {
         idea.setDescription(rs.getString("description"));
         idea.setCategory(rs.getString("category"));
         idea.setBasePrice(rs.getDouble("base_price"));
+        Double maxBudget = rs.getObject("max_budget", Double.class);
+        idea.setMaxBudget(maxBudget != null ? maxBudget : idea.getBasePrice());
         idea.setStatus(rs.getString("status"));
 
         return idea;

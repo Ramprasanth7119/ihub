@@ -19,8 +19,21 @@ public class AuctionRowMapper implements RowMapper<Auction> {
         Auction auction = new Auction();
         auction.setId(rs.getLong("id"));
         auction.setIdeaId(rs.getLong("idea_id"));
-        auction.setStartTime(rs.getTimestamp("start_time").toLocalDateTime());
-        auction.setEndTime(rs.getTimestamp("end_time").toLocalDateTime());
+
+        var startTime = rs.getTimestamp("start_time");
+        if (startTime != null) {
+            auction.setStartTime(startTime.toLocalDateTime());
+        }
+        var endTime = rs.getTimestamp("end_time");
+        if (endTime != null) {
+            auction.setEndTime(endTime.toLocalDateTime());
+        }
+
+        Double minIncrement = rs.getObject("min_bid_increment", Double.class);
+        if (minIncrement != null) {
+            auction.setMinBidIncrement(minIncrement);
+        }
+
         auction.setStatus(rs.getString("status"));
 
         return auction;

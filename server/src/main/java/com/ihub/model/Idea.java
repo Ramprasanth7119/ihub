@@ -14,9 +14,10 @@ public class Idea {
     private String description;
     private String category;
     private Double basePrice;
+    private Double maxBudget;
     private String status;
 	public Idea(Long id, Long creatorId, String title, String description, String category, Double basePrice,
-			String status) {
+			Double maxBudget, String status) {
 		super();
 		this.id = id;
 		this.creatorId = creatorId;
@@ -24,6 +25,7 @@ public class Idea {
 		this.description = description;
 		this.category = category;
 		this.basePrice = basePrice;
+		this.maxBudget = maxBudget;
 		this.status = status;
 	}
 	public Idea() {
@@ -64,6 +66,12 @@ public class Idea {
 	}
 	public void setBasePrice(Double basePrice) {
 		this.basePrice = basePrice;
+	}
+	public Double getMaxBudget() {
+		return maxBudget;
+	}
+	public void setMaxBudget(Double maxBudget) {
+		this.maxBudget = maxBudget;
 	}
 	public String getStatus() {
 		return status;

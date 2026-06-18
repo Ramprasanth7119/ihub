@@ -1,21 +1,17 @@
 package com.ihub.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
 import java.time.LocalDateTime;
 
 /**
  * DTO for auction response
  */
-@Data
-@AllArgsConstructor
 public class AuctionResponse {
 
     private Long id;
     private Long ideaId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private Double minBidIncrement;
     private String status;
 	public Long getId() {
 		return id;
@@ -41,18 +37,26 @@ public class AuctionResponse {
 	public void setEndTime(LocalDateTime endTime) {
 		this.endTime = endTime;
 	}
+	public Double getMinBidIncrement() {
+		return minBidIncrement;
+	}
+	public void setMinBidIncrement(Double minBidIncrement) {
+		this.minBidIncrement = minBidIncrement;
+	}
 	public String getStatus() {
 		return status;
 	}
 	public void setStatus(String status) {
 		this.status = status;
 	}
-	public AuctionResponse(Long id, Long ideaId, LocalDateTime startTime, LocalDateTime endTime, String status) {
+	public AuctionResponse(Long id, Long ideaId, LocalDateTime startTime, LocalDateTime endTime,
+	                       Double minBidIncrement, String status) {
 		super();
 		this.id = id;
 		this.ideaId = ideaId;
 		this.startTime = startTime;
 		this.endTime = endTime;
+		this.minBidIncrement = minBidIncrement;
 		this.status = status;
 	}
 	public AuctionResponse() {

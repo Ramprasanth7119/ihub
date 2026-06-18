@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import java.util.Map;
 
 @Repository
-@RequiredArgsConstructor
 public class AuthDao {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -21,7 +20,7 @@ public class AuthDao {
 
     public Map<String, Object> getUserByEmail(String email) {
         try {
-            String sql = "SELECT id, email, password, role FROM users WHERE email = :email";
+            String sql = "SELECT id, email, password, role, active FROM users WHERE email = :email";
             return jdbcTemplate.queryForMap(sql, Map.of("email", email));
         } catch (org.springframework.dao.EmptyResultDataAccessException e) {
             return null; // This allows the Service to throw your CustomException

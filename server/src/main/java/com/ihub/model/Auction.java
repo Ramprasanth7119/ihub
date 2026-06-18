@@ -14,6 +14,7 @@ public class Auction {
     private Long ideaId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private Double minBidIncrement;
     private String status;
 	public Auction(Long id, Long ideaId, LocalDateTime startTime, LocalDateTime endTime, String status) {
 		super();
@@ -49,6 +50,12 @@ public class Auction {
 	}
 	public void setEndTime(LocalDateTime endTime) {
 		this.endTime = endTime;
+	}
+	public Double getMinBidIncrement() {
+		return minBidIncrement;
+	}
+	public void setMinBidIncrement(Double minBidIncrement) {
+		this.minBidIncrement = minBidIncrement;
 	}
 	public String getStatus() {
 		return status;
