@@ -1,39 +1,35 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 spring:
   application:
     name: ihub-bidding-service
-  elasticsearch:
-    uris: http://localhost:9200
-    username: elastic
-    password: elastic123
 
-  # MySQL Database Configuration
   datasource:
-    # Add your database name (ihub_db) after the slash
-    url: jdbc:mysql://localhost:3306/ihub
-    username: root
-    password: root
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # JdbcTemplate & SQL Settings
+  elasticsearch:
+    uris: ${ES_URL}
+    username: ${ES_USERNAME}
+    password: ${ES_PASSWORD}
+
   jdbc:
     template:
       query-timeout: 30s
-  
-  # Manual SQL Script Initialization (Optional but helpful)
+
   sql:
     init:
       mode: always
       platform: mysql
 
-  # JWT Security Properties
   security:
     jwt:
-      secret: thecrazyfoxjumpsoverthelazybrownfox1309
-      expiration: 3600000
-      refresh-expiration: 604800000
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:3600000}
+      refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
   mail:
     host: ${MAIL_HOST:}
@@ -47,7 +43,6 @@ spring:
           starttls:
             enable: true
 
-# Auction lifecycle scheduler (checks start_time / end_time every minute)
 auction:
   cron:
     lifecycle: "0 */1 * * * *"
@@ -59,8 +54,8 @@ search:
 
 ihub:
   notification:
-    email-enabled: false
-    from-address: noreply@ihub.local
+    email-enabled: ${EMAIL_ENABLED:false}
+    from-address: ${EMAIL_FROM:noreply@ihub.com}
     outbox:
       batch-size: 20
       max-attempts: 3
