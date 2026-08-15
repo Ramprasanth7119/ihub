@@ -1,0 +1,15 @@
+target/
+bin/
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+.settings/
+.classpath
+.project
+.apt_generated*/
+*.log
+hs_err_pid*.log
+HELP.md
+docker-compose.yml

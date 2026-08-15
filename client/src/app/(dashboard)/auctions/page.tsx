@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auctionService } from "@/services/auction.service";
 import { ideaService } from "@/services/idea.service";
-import { bidService } from "@/services/bid.service";
 
 export default function AuctionsPage() {
   const { data: auctions, isLoading } = useQuery({

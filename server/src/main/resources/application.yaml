@@ -1,29 +1,58 @@
 server:
   port: ${PORT:8081}
+  # Honour X-Forwarded-* from the load balancer / Vercel proxy so redirects and
+  # client IPs in the audit log are correct behind TLS termination.
+  forward-headers-strategy: framework
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
 
 spring:
   application:
     name: ihub-bidding-service
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:2}
+      connection-timeout: 30000
+      # Keep pooled connections comfortably below MySQL's wait_timeout.
+      max-lifetime: 1200000
+
+  # Schema is owned by Flyway (src/main/resources/db/migration). `spring.sql.init` is
+  # deliberately disabled: running schema.sql on every boot alongside versioned
+  # migrations gives two competing sources of truth.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Databases created before Flyway was introduced already match V1, so they are
+    # baselined at that version rather than having V1 re-applied.
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+
+  sql:
+    init:
+      mode: never
 
   elasticsearch:
-    uris: ${ES_URL}
-    username: ${ES_USERNAME}
-    password: ${ES_PASSWORD}
+    uris: ${ES_URL:http://localhost:9200}
+    username: ${ES_USERNAME:}
+    password: ${ES_PASSWORD:}
+    connection-timeout: 5s
+    socket-timeout: 10s
 
   jdbc:
     template:
       query-timeout: 30s
-
-  sql:
-    init:
-      mode: always
-      platform: mysql
 
   security:
     jwt:
@@ -43,16 +72,15 @@ spring:
           starttls:
             enable: true
 
-auction:
-  cron:
-    lifecycle: "0 */1 * * * *"
-  default-min-bid-increment: 100
-
-search:
-  default-page-size: 20
-  max-page-size: 100
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 ihub:
+  # Comma-separated origins allowed to call the API directly from a browser.
+  # The Next.js client normally proxies through its own rewrites, so this matters
+  # for any client that talks to the API cross-origin.
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:3000}
   notification:
     email-enabled: ${EMAIL_ENABLED:false}
     from-address: ${EMAIL_FROM:noreply@ihub.com}
@@ -61,7 +89,64 @@ ihub:
       max-attempts: 3
       cron: "0 */2 * * * *"
 
+auction:
+  cron:
+    lifecycle: "0 */1 * * * *"
+  default-min-bid-increment: 100
+  # How far ahead of the end time participants are warned that an auction is closing.
+  ending-soon-window-minutes: 15
+
+search:
+  default-page-size: 20
+  max-page-size: 100
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    # Elasticsearch is a degraded-mode dependency, not a liveness requirement:
+    # the platform must stay up (minus search) when the cluster is unreachable.
+    elasticsearch:
+      enabled: false
+    # Likewise mail: notifications queue in email_outbox and drain when SMTP
+    # returns. An unconfigured or unreachable mail server previously reported the
+    # whole service DOWN, which would make an orchestrator restart a healthy pod.
+    mail:
+      enabled: false
+
 logging:
   level:
     root: INFO
+    com.ihub: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.ihub: DEBUG
     org.springframework.jdbc.core.JdbcTemplate: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: WARN
+    com.ihub: INFO
+    # SQL logging is dev-only: at DEBUG the JdbcTemplate logger writes every
+    # statement and bound parameter, which would put user data in production logs.
+    org.springframework.jdbc.core.JdbcTemplate: WARN

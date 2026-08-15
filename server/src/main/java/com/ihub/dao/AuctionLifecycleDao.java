@@ -39,6 +39,29 @@ public class AuctionLifecycleDao {
         return jdbcTemplate.query(sql, auctionRowMapper);
     }
 
+    /**
+     * Active auctions whose end time falls inside the next {@code minutes} window and
+     * that have not already been warned.
+     *
+     * <p>The {@code auction_events} table doubles as the idempotency ledger: an
+     * auction with an {@code ENDING_SOON} row is skipped, so repeated scheduler runs
+     * (or a restart mid-window) cannot notify the same participants twice.</p>
+     */
+    public List<Auction> findEndingSoon(int minutes) {
+        String sql = """
+            SELECT a.* FROM auctions a
+            WHERE a.status = 'ACTIVE'
+              AND a.end_time > NOW()
+              AND a.end_time <= DATE_ADD(NOW(), INTERVAL :minutes MINUTE)
+              AND NOT EXISTS (
+                  SELECT 1 FROM auction_events e
+                  WHERE e.auction_id = a.id AND e.event_type = 'ENDING_SOON'
+              )
+            ORDER BY a.end_time ASC
+        """;
+        return jdbcTemplate.query(sql, Map.of("minutes", minutes), auctionRowMapper);
+    }
+
     public int activateById(Long auctionId) {
         return jdbcTemplate.update(
                 "UPDATE auctions SET status = 'ACTIVE' WHERE id = :id AND status = 'SCHEDULED'",
@@ -46,9 +69,37 @@ public class AuctionLifecycleDao {
         );
     }
 
+    /**
+     * Activates an auction ahead of its schedule, pulling {@code start_time} forward
+     * to now.
+     *
+     * <p>Bid validation checks the auction window as well as the status, so leaving a
+     * future start time in place would activate an auction that still rejected every
+     * bid with "has not started yet".</p>
+     */
+    public int activateNowById(Long auctionId) {
+        return jdbcTemplate.update("""
+            UPDATE auctions
+            SET status = 'ACTIVE',
+                start_time = LEAST(start_time, NOW())
+            WHERE id = :id AND status = 'SCHEDULED'
+        """, Map.of("id", auctionId));
+    }
+
     public int closeById(Long auctionId) {
         return jdbcTemplate.update(
                 "UPDATE auctions SET status = 'CLOSED' WHERE id = :id AND status = 'ACTIVE'",
+                Map.of("id", auctionId)
+        );
+    }
+
+    /** Cancels an auction that has not yet reached a terminal state. */
+    public int cancelById(Long auctionId) {
+        return jdbcTemplate.update(
+                """
+                    UPDATE auctions SET status = 'CANCELLED'
+                    WHERE id = :id AND status NOT IN ('CLOSED', 'CANCELLED')
+                """,
                 Map.of("id", auctionId)
         );
     }

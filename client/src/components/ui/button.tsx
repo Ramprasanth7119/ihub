@@ -7,16 +7,21 @@ const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
+      // The public app is a dark glassmorphism surface; the admin console is light.
+      // The `[data-surface=light]` ancestor selector re-colours the translucent
+      // variants there — without it, `outline`/`secondary`/`ghost` render white text
+      // on a white background and disappear.
       variant: {
         default:
           "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-indigo-500",
         secondary:
-          "bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-sm",
-        ghost: "hover:bg-white/5 text-slate-300 hover:text-white",
+          "bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-sm [[data-surface=light]_&]:bg-slate-100 [[data-surface=light]_&]:text-slate-900 [[data-surface=light]_&]:border-slate-200 [[data-surface=light]_&]:hover:bg-slate-200",
+        ghost:
+          "hover:bg-white/5 text-slate-300 hover:text-white [[data-surface=light]_&]:text-slate-600 [[data-surface=light]_&]:hover:bg-slate-100 [[data-surface=light]_&]:hover:text-slate-900",
         outline:
-          "border border-white/15 bg-transparent text-white hover:bg-white/5",
+          "border border-white/15 bg-transparent text-white hover:bg-white/5 [[data-surface=light]_&]:border-slate-300 [[data-surface=light]_&]:text-slate-700 [[data-surface=light]_&]:hover:bg-slate-100",
         destructive: "bg-red-600 text-white hover:bg-red-500",
-        link: "text-violet-400 underline-offset-4 hover:underline",
+        link: "text-violet-400 underline-offset-4 hover:underline [[data-surface=light]_&]:text-violet-700",
       },
       size: {
         default: "h-10 px-5 py-2",

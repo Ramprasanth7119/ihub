@@ -4,8 +4,10 @@ import com.ihub.dto.IdeaRequest;
 import com.ihub.dto.IdeaResponse;
 import com.ihub.dto.IdeaUpdateRequest;
 import com.ihub.service.IdeaService;
+import com.ihub.util.PagedResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +32,7 @@ public class IdeaController {
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public IdeaResponse createIdea(@Valid @RequestBody IdeaRequest request) {
         return ideaService.createIdea(request);
     }
@@ -39,14 +42,21 @@ public class IdeaController {
         return ideaService.getIdea(id);
     }
 
+    /**
+     * Returns a JSON array of ideas. Paging is bounded server-side and reported via
+     * the {@code X-Total-Count} / {@code X-Page} / {@code X-Page-Size} headers.
+     */
     @GetMapping
-    public List<IdeaResponse> getIdeas(
+    public ResponseEntity<List<IdeaResponse>> getIdeas(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Double minBudget,
             @RequestParam(required = false) Double maxBudget,
-            @RequestParam(required = false, defaultValue = "false") Boolean mine) {
-        return ideaService.getIdeas(status, category, minBudget, maxBudget, mine);
+            @RequestParam(required = false, defaultValue = "false") Boolean mine,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return PagedResponse.of(
+                ideaService.getIdeas(status, category, minBudget, maxBudget, mine, page, size));
     }
 
     @PutMapping("/{id}")

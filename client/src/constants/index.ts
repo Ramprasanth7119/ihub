@@ -1,7 +1,12 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8081/ws";
 
-export const AUCTION_STATUSES = ["UPCOMING", "ACTIVE", "CLOSED"] as const;
+/**
+ * Auction statuses as persisted by the backend. `SCHEDULED` is the real upcoming
+ * state — `UPCOMING` is only ever accepted as an inbound alias, never stored, so
+ * filtering on it returns nothing.
+ */
+export const AUCTION_STATUSES = ["SCHEDULED", "ACTIVE", "CLOSED", "CANCELLED"] as const;
 export const IDEA_STATUSES = [
   "DRAFT",
   "PENDING",
@@ -43,6 +48,7 @@ export const NAV_INVESTOR = [
   { href: "/search", label: "Discover", icon: "Search" },
   { href: "/ideas", label: "Ideas", icon: "Lightbulb" },
   { href: "/auctions", label: "Auctions", icon: "Gavel" },
+  { href: "/my-bids", label: "My Bids", icon: "Gavel" },
   { href: "/notifications", label: "Notifications", icon: "Bell" },
   { href: "/profile", label: "Profile", icon: "User" },
 ] as const;

@@ -6,10 +6,16 @@ import com.ihub.dao.UserDao;
 import com.ihub.dto.IdeaRequest;
 import com.ihub.dto.IdeaResponse;
 import com.ihub.dto.IdeaUpdateRequest;
-import com.ihub.exception.CustomException;
+import com.ihub.exception.ConflictException;
+import com.ihub.exception.ForbiddenException;
+import com.ihub.exception.NotFoundException;
+import com.ihub.exception.UnauthorizedException;
+import com.ihub.exception.UnprocessableEntityException;
 import com.ihub.model.Idea;
+import com.ihub.model.PagedResult;
 import com.ihub.model.User;
 import com.ihub.search.IdeaDocument;
+import com.ihub.util.Pagination;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,7 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class IdeaService {
@@ -47,8 +53,10 @@ public class IdeaService {
         validateBudgetRange(request.getBasePrice(), request.getMaxBudget());
         categoryService.validateCategorySlug(request.getCategory());
 
+        // The body may carry a creatorId; it is never trusted as the owner, only
+        // rejected when it disagrees with the authenticated principal.
         if (request.getCreatorId() != null && !request.getCreatorId().equals(creator.getId())) {
-            throw new CustomException("Creator ID does not match authenticated user");
+            throw new ForbiddenException("Creator ID does not match authenticated user");
         }
 
         Long id = ideaDao.createIdea(request, creator.getId());
@@ -63,7 +71,10 @@ public class IdeaService {
         return mapToResponse(idea);
     }
 
-    public List<IdeaResponse> getIdeas(String status, String category, Double minBudget, Double maxBudget, Boolean mine) {
+    public PagedResult<IdeaResponse> getIdeas(
+            String status, String category, Double minBudget, Double maxBudget,
+            Boolean mine, Integer page, Integer size) {
+
         Long creatorFilter = null;
         String statusFilter;
 
@@ -71,13 +82,19 @@ public class IdeaService {
             creatorFilter = getAuthenticatedCreator().getId();
             statusFilter = (status != null && !status.isBlank()) ? status : null;
         } else {
+            // Public discovery only ever exposes published ideas.
             statusFilter = "PUBLISHED";
         }
 
-        return ideaDao.findIdeas(statusFilter, category, minBudget, maxBudget, creatorFilter)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        int resolvedPage = Pagination.resolvePage(page);
+        int resolvedSize = Pagination.resolveSize(size);
+
+        List<Idea> ideas = ideaDao.findIdeas(
+                statusFilter, category, minBudget, maxBudget, creatorFilter,
+                resolvedSize, Pagination.offset(resolvedPage, resolvedSize));
+        long total = ideaDao.countIdeas(statusFilter, category, minBudget, maxBudget, creatorFilter);
+
+        return new PagedResult<>(mapToResponses(ideas), total, resolvedPage, resolvedSize);
     }
 
     @Transactional
@@ -86,7 +103,7 @@ public class IdeaService {
         assertCreatorOwns(existing);
 
         if (!"DRAFT".equalsIgnoreCase(existing.getStatus())) {
-            throw new CustomException("Only draft ideas can be updated");
+            throw new ConflictException("Only draft ideas can be updated");
         }
 
         if (request.getCategory() != null) {
@@ -100,7 +117,7 @@ public class IdeaService {
         try {
             ideaDao.updateIdea(id, request);
         } catch (EmptyResultDataAccessException e) {
-            throw new CustomException("Idea not found or not in draft status");
+            throw new ConflictException("Idea is no longer in draft status");
         }
 
         if (request.getTags() != null) {
@@ -116,13 +133,13 @@ public class IdeaService {
         assertCreatorOwns(existing);
 
         if (!"DRAFT".equalsIgnoreCase(existing.getStatus())) {
-            throw new CustomException("Only draft ideas can be published");
+            throw new ConflictException("Only draft ideas can be published");
         }
 
         try {
             ideaDao.publishIdea(id);
         } catch (EmptyResultDataAccessException e) {
-            throw new CustomException("Idea not found or not in draft status");
+            throw new ConflictException("Idea is no longer in draft status");
         }
 
         Idea published = ideaDao.getIdeaById(id);
@@ -140,7 +157,7 @@ public class IdeaService {
         try {
             ideaDao.archiveIdea(id);
         } catch (EmptyResultDataAccessException e) {
-            throw new CustomException("Idea not found");
+            throw new ConflictException("Idea is already archived");
         }
 
         ideaSearchService.removeFromIndex(id);
@@ -150,53 +167,88 @@ public class IdeaService {
         try {
             return ideaDao.getIdeaById(id);
         } catch (EmptyResultDataAccessException e) {
-            throw new CustomException("Idea not found");
+            throw new NotFoundException("Idea not found");
         }
     }
 
+    /**
+     * Published ideas are public. Anything else is visible only to its own creator
+     * (and to admins, who moderate the catalogue). Archived ideas are reported as
+     * missing rather than forbidden so their existence is not disclosed.
+     */
     private void assertCanView(Idea idea) {
         if ("PUBLISHED".equalsIgnoreCase(idea.getStatus())) {
             return;
         }
         if ("ARCHIVED".equalsIgnoreCase(idea.getStatus())) {
-            throw new CustomException("Idea not found");
+            throw new NotFoundException("Idea not found");
         }
-        User current = getAuthenticatedCreator();
+
+        User current = getAuthenticatedUser();
+        if ("ADMIN".equalsIgnoreCase(current.getRole())) {
+            return;
+        }
         if (!idea.getCreatorId().equals(current.getId())) {
-            throw new CustomException("Access denied");
+            throw new NotFoundException("Idea not found");
         }
     }
 
     private void assertCreatorOwns(Idea idea) {
         User creator = getAuthenticatedCreator();
         if (!idea.getCreatorId().equals(creator.getId())) {
-            throw new CustomException("You can only modify your own ideas");
+            throw new ForbiddenException("You can only modify your own ideas");
         }
     }
 
     private User getAuthenticatedCreator() {
+        User user = getAuthenticatedUser();
+        if (!"CREATOR".equalsIgnoreCase(user.getRole())) {
+            throw new ForbiddenException("Only creators can manage ideas");
+        }
+        return user;
+    }
+
+    private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new CustomException("Authentication required");
+            throw new UnauthorizedException("Authentication required");
         }
 
         User user = userDao.findByEmail(auth.getName());
         if (user == null) {
-            throw new CustomException("User not found");
-        }
-        if (!"CREATOR".equalsIgnoreCase(user.getRole())) {
-            throw new CustomException("Only creators can manage ideas");
+            throw new UnauthorizedException("Authenticated user no longer exists");
         }
         return user;
     }
 
     private void validateBudgetRange(Double basePrice, Double maxBudget) {
-        if (maxBudget != null && maxBudget < basePrice) {
-            throw new CustomException("Max budget must be greater than or equal to base price");
+        if (basePrice == null || maxBudget == null) {
+            return;
+        }
+        if (maxBudget < basePrice) {
+            throw new UnprocessableEntityException("Max budget must be greater than or equal to base price");
         }
     }
 
     private IdeaResponse mapToResponse(Idea idea) {
+        return toResponse(idea, tagDao.findTagNamesByIdeaId(idea.getId()));
+    }
+
+    /** Maps a collection while loading every idea's tags in one query rather than N. */
+    private List<IdeaResponse> mapToResponses(List<Idea> ideas) {
+        if (ideas.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> ideaIds = ideas.stream().map(Idea::getId).toList();
+        Map<Long, List<String>> tagsByIdea = tagDao.findTagNamesGroupedByIdeaIds(ideaIds);
+
+        return ideas.stream()
+                .map(idea -> toResponse(idea, tagsByIdea.getOrDefault(idea.getId(), List.of())))
+                .toList();
+    }
+
+    private IdeaResponse toResponse(Idea idea, List<String> tags) {
         return new IdeaResponse(
                 idea.getId(),
                 idea.getCreatorId(),
@@ -206,7 +258,7 @@ public class IdeaService {
                 idea.getBasePrice(),
                 idea.getMaxBudget(),
                 idea.getStatus(),
-                tagDao.findTagNamesByIdeaId(idea.getId())
+                tags
         );
     }
 

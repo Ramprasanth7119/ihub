@@ -15,6 +15,11 @@ import java.util.UUID;
 @Component
 public class JwtUtil {
 
+    private static final String TYPE_ACCESS = "access";
+
+    /** HS256 requires at least 256 bits of key material. */
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final SecretKey signingKey;
     private final long accessExpirationMs;
     private final long refreshExpirationMs;
@@ -23,13 +28,21 @@ public class JwtUtil {
             @Value("${spring.security.jwt.secret}") String secret,
             @Value("${spring.security.jwt.expiration}") long accessExpirationMs,
             @Value("${spring.security.jwt.refresh-expiration:604800000}") long refreshExpirationMs) {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
+        byte[] keyBytes = secret != null ? secret.getBytes(StandardCharsets.UTF_8) : new byte[0];
+        // Fail fast at startup rather than issuing tokens signed with a weak key.
+        if (keyBytes.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "JWT_SECRET must be at least " + MIN_SECRET_BYTES + " characters; got " + keyBytes.length);
+        }
+
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
         this.accessExpirationMs = accessExpirationMs;
         this.refreshExpirationMs = refreshExpirationMs;
     }
 
     public String generateAccessToken(String email, String role) {
-        return buildToken(email, role, accessExpirationMs, "access");
+        return buildToken(email, role, accessExpirationMs, TYPE_ACCESS);
     }
 
     public String generateRefreshToken() {
@@ -54,6 +67,14 @@ public class JwtUtil {
 
     public boolean isTokenExpired(String token) {
         return getClaims(token).getExpiration().before(new Date());
+    }
+
+    /**
+     * True when the token was minted by {@link #generateAccessToken}. Guards against
+     * a token issued for another purpose being replayed as an API credential.
+     */
+    public boolean isAccessToken(String token) {
+        return TYPE_ACCESS.equals(getClaims(token).get("type"));
     }
 
     private String buildToken(String email, String role, long expirationMs, String type) {

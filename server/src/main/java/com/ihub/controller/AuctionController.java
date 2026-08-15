@@ -5,8 +5,12 @@ import com.ihub.dto.AuctionRequest;
 import com.ihub.dto.AuctionResponse;
 import com.ihub.dto.AuctionWinnerResponse;
 import com.ihub.service.AuctionService;
+import com.ihub.util.PagedResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +31,7 @@ public class AuctionController {
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public AuctionResponse createAuction(@Valid @RequestBody AuctionRequest request) {
         return auctionService.createAuction(request);
     }
@@ -36,9 +41,16 @@ public class AuctionController {
         return auctionService.getAuction(id);
     }
 
+    /**
+     * Returns a JSON array of auctions; paging metadata travels in the
+     * {@code X-Total-Count} / {@code X-Page} / {@code X-Page-Size} headers.
+     */
     @GetMapping
-    public List<AuctionResponse> getAuctions(@RequestParam(required = false) String status) {
-        return auctionService.getAuctions(status);
+    public ResponseEntity<List<AuctionResponse>> getAuctions(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return PagedResponse.of(auctionService.getAuctions(status, page, size));
     }
 
     @GetMapping("/{id}/winner")

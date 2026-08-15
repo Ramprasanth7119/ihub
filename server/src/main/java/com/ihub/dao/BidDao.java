@@ -19,13 +19,28 @@ public class BidDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Takes an exclusive row lock on the auction so concurrent bids on the same
+     * auction are serialised for the duration of the calling transaction. Only the
+     * auction row is locked ({@code FOR UPDATE OF a}) — locking the joined idea row
+     * as well would needlessly block unrelated creator operations.
+     *
+     * @return the locked snapshot, or {@code null} when the auction does not exist
+     */
     public AuctionBidContext lockAuctionForBid(Long auctionId) {
+        // The window comparison is evaluated by MySQL rather than in Java. The
+        // scheduler's start/close sweeps already use NOW(), so deciding "is this
+        // auction open?" against the same clock keeps the two consistent even when
+        // the JVM and the database server run in different time zones.
         String sql = """
-            SELECT a.status, a.min_bid_increment, i.base_price, i.creator_id AS idea_creator_id
+            SELECT a.status, a.min_bid_increment, a.start_time, a.end_time,
+                   (NOW() < a.start_time) AS before_start,
+                   (NOW() >= a.end_time)  AS after_end,
+                   i.base_price, i.creator_id AS idea_creator_id
             FROM auctions a
             INNER JOIN ideas i ON i.id = a.idea_id
             WHERE a.id = :id
-            FOR UPDATE
+            FOR UPDATE OF a
         """;
 
         try {
@@ -36,11 +51,19 @@ public class BidDao {
                 ctx.setMinBidIncrement(minIncrement != null ? minIncrement : 100.0);
                 ctx.setBasePrice(rs.getDouble("base_price"));
                 ctx.setIdeaCreatorId(rs.getLong("idea_creator_id"));
+                ctx.setStartTime(toLocalDateTime(rs.getTimestamp("start_time")));
+                ctx.setEndTime(toLocalDateTime(rs.getTimestamp("end_time")));
+                ctx.setBeforeStart(rs.getBoolean("before_start"));
+                ctx.setAfterEnd(rs.getBoolean("after_end"));
                 return ctx;
             });
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
+    }
+
+    private static LocalDateTime toLocalDateTime(java.sql.Timestamp timestamp) {
+        return timestamp != null ? timestamp.toLocalDateTime() : null;
     }
 
     public Double getHighestBid(Long auctionId) {
@@ -68,16 +91,75 @@ public class BidDao {
         return keyHolder.getKey().longValue();
     }
 
-    public List<Map<String, Object>> findBidHistory(Long auctionId) {
+    public List<Map<String, Object>> findBidHistory(Long auctionId, int limit, int offset) {
         String sql = """
             SELECT b.id AS bid_id, b.investor_id, u.name AS investor_name,
                    b.bid_amount, b.created_at
             FROM bids b
             INNER JOIN users u ON u.id = b.investor_id
             WHERE b.auction_id = :auctionId
-            ORDER BY b.created_at DESC
+            ORDER BY b.created_at DESC, b.id DESC
+            LIMIT :limit OFFSET :offset
         """;
-        return jdbcTemplate.queryForList(sql, Map.of("auctionId", auctionId));
+        return jdbcTemplate.queryForList(sql, Map.of(
+                "auctionId", auctionId, "limit", limit, "offset", offset));
+    }
+
+    public long countBidsForAuction(Long auctionId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bids WHERE auction_id = :auctionId",
+                Map.of("auctionId", auctionId),
+                Long.class
+        );
+        return count != null ? count : 0L;
+    }
+
+    /** Number of distinct investors who have bid — drives the "N bidders" figure in the live auction UI. */
+    public int countDistinctBidders(Long auctionId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT investor_id) FROM bids WHERE auction_id = :auctionId",
+                Map.of("auctionId", auctionId),
+                Integer.class
+        );
+        return count != null ? count : 0;
+    }
+
+    /**
+     * An investor's own bidding history across every auction, annotated with the idea
+     * title, auction status and whether the bid is currently the leading one — so the
+     * client can render "my bids" without a request per auction.
+     */
+    public List<Map<String, Object>> findBidsByInvestor(Long investorId, int limit, int offset) {
+        String sql = """
+            SELECT b.id AS bid_id, b.auction_id, b.bid_amount, b.created_at,
+                   i.id AS idea_id, i.title AS idea_title,
+                   a.status AS auction_status, a.end_time,
+                   top.max_amount AS highest_bid,
+                   (aw.winner_id IS NOT NULL AND aw.winner_id = b.investor_id) AS won
+            FROM bids b
+            INNER JOIN auctions a ON a.id = b.auction_id
+            INNER JOIN ideas i ON i.id = a.idea_id
+            LEFT JOIN auction_winners aw ON aw.auction_id = a.id
+            LEFT JOIN (
+                SELECT auction_id, MAX(bid_amount) AS max_amount
+                FROM bids
+                GROUP BY auction_id
+            ) top ON top.auction_id = b.auction_id
+            WHERE b.investor_id = :investorId
+            ORDER BY b.created_at DESC, b.id DESC
+            LIMIT :limit OFFSET :offset
+        """;
+        return jdbcTemplate.queryForList(sql, Map.of(
+                "investorId", investorId, "limit", limit, "offset", offset));
+    }
+
+    public long countBidsByInvestor(Long investorId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bids WHERE investor_id = :investorId",
+                Map.of("investorId", investorId),
+                Long.class
+        );
+        return count != null ? count : 0L;
     }
 
     public Map<String, Object> findHighestBid(Long auctionId) {

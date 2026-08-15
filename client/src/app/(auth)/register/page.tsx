@@ -126,9 +126,35 @@ function RegisterForm() {
 }
 
 export default function RegisterPage() {
+  // The whole form suspends because the `role` query parameter seeds which account
+  // type is preselected — that has to be known before the first render, or the
+  // toggle would visibly flip after hydration. The fallback mirrors the form's
+  // shape so the layout doesn't jump when it resolves.
   return (
-    <Suspense>
+    <Suspense fallback={<RegisterFormSkeleton />}>
       <RegisterForm />
     </Suspense>
+  );
+}
+
+function RegisterFormSkeleton() {
+  return (
+    <div className="w-full max-w-md" aria-hidden="true">
+      <div className="h-8 w-48 animate-pulse rounded-lg bg-white/10" />
+      <div className="mt-3 h-4 w-64 animate-pulse rounded bg-white/5" />
+      <div className="mt-8 grid grid-cols-2 gap-3">
+        <div className="h-20 animate-pulse rounded-xl bg-white/5" />
+        <div className="h-20 animate-pulse rounded-xl bg-white/5" />
+      </div>
+      <div className="mt-6 space-y-5">
+        {[0, 1, 2].map((i) => (
+          <div key={i}>
+            <div className="h-4 w-24 animate-pulse rounded bg-white/5" />
+            <div className="mt-1.5 h-10 animate-pulse rounded-xl bg-white/5" />
+          </div>
+        ))}
+        <div className="h-10 animate-pulse rounded-xl bg-white/10" />
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -71,15 +71,12 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   });
 
   const { latestBid, leaderboard: liveLeaderboard, connected } = useAuctionSocket(auctionId);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
-  useEffect(() => {
-    if (initialLeaderboard) setLeaderboard(initialLeaderboard);
-  }, [initialLeaderboard]);
-
-  useEffect(() => {
-    if (liveLeaderboard.length > 0) setLeaderboard(liveLeaderboard);
-  }, [liveLeaderboard]);
+  // Derived rather than mirrored into state: the socket snapshot wins once one
+  // arrives, otherwise the fetched one is shown. Copying these into `useState`
+  // via effects caused an extra render pass on every update.
+  const leaderboard: LeaderboardEntry[] =
+    liveLeaderboard.length > 0 ? liveLeaderboard : (initialLeaderboard ?? []);
 
   useEffect(() => {
     if (latestBid) {
@@ -92,7 +89,10 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   if (isLoading) return <Skeleton className="h-96" />;
   if (isError || !auction) return <ErrorState onRetry={() => refetch()} />;
 
-  const targetTime = auction.status === "UPCOMING" ? auction.startTime : auction.endTime;
+  // SCHEDULED is the persisted "not started yet" status; comparing against
+  // UPCOMING meant upcoming auctions counted down to their end time instead.
+  const notStarted = auction.status === "SCHEDULED" || auction.status === "UPCOMING";
+  const targetTime = notStarted ? auction.startTime : auction.endTime;
 
   return (
     <div className="mx-auto max-w-6xl">

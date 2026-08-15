@@ -11,6 +11,13 @@ const badgeVariants = cva(
         success: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
         warning: "border-amber-500/30 bg-amber-500/15 text-amber-300",
         muted: "border-white/10 bg-white/5 text-slate-400",
+        secondary:
+          "border-slate-300/40 bg-slate-500/10 text-slate-500 [[data-surface=light]_&]:border-slate-200 [[data-surface=light]_&]:bg-slate-100 [[data-surface=light]_&]:text-slate-700",
+        /**
+         * Colour-free base for callers that supply their own status classes via
+         * `className` — e.g. `getStatusColor` / `getAdminStatusColor`.
+         */
+        outline: "border-current/20 bg-transparent",
       },
     },
     defaultVariants: { variant: "default" },

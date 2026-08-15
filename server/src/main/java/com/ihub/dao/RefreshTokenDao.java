@@ -54,4 +54,17 @@ public class RefreshTokenDao {
         String sql = "UPDATE refresh_tokens SET revoked = true WHERE user_id = :userId";
         jdbcTemplate.update(sql, Map.of("userId", userId));
     }
+
+    /**
+     * Deletes tokens that can no longer be exchanged. Rotation issues a new row per
+     * refresh, so without a sweep this table grows without bound. Revoked rows are
+     * kept for a grace period to aid incident investigation.
+     */
+    public int deleteExpired() {
+        return jdbcTemplate.update("""
+            DELETE FROM refresh_tokens
+            WHERE expires_at < NOW()
+               OR (revoked = true AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY))
+        """, Map.of());
+    }
 }

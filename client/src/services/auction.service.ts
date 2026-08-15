@@ -2,8 +2,14 @@ import api from "@/lib/axios";
 import type { Auction, AuctionHistoryEntry, AuctionWinner } from "@/types";
 
 export const auctionService = {
-  getAll: (status?: string) =>
-    api.get<Auction[]>("/auctions", { params: status ? { status } : {} }).then((r) => r.data),
+  /**
+   * The body is a plain array; the backend bounds the page and reports totals via
+   * `X-Total-Count` / `X-Page` / `X-Page-Size` headers.
+   */
+  getAll: (status?: string, params?: { page?: number; size?: number }) =>
+    api
+      .get<Auction[]>("/auctions", { params: { ...(status ? { status } : {}), ...params } })
+      .then((r) => r.data),
 
   getById: (id: number) => api.get<Auction>(`/auctions/${id}`).then((r) => r.data),
 

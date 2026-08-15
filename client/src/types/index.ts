@@ -11,7 +11,12 @@ export interface AuthResponse {
 export interface User {
   id: number;
   name: string;
-  email: string;
+  /**
+   * Only returned for your own account or to an administrator. Reading another
+   * user's profile yields `null` here so the endpoint cannot be used to harvest
+   * email addresses.
+   */
+  email: string | null;
   role: UserRole;
 }
 
@@ -145,11 +150,75 @@ export interface AuctionWinner {
   closedAt: string;
 }
 
+/** One of an investor's own bids, with enough auction context to render standalone. */
+export interface InvestorBid {
+  bidId: number;
+  auctionId: number;
+  ideaId: number;
+  ideaTitle: string;
+  amount: number;
+  highestBid: number;
+  auctionStatus: string;
+  endTime: string;
+  placedAt: string;
+  /** This bid is currently the highest on its auction. */
+  leading: boolean;
+  /** The auction closed and this investor won it. */
+  won: boolean;
+}
+
+/** A decided auction joined with its idea, creator and winner. */
+export interface AuctionWinnerSummary {
+  auctionId: number;
+  ideaId: number;
+  ideaTitle: string;
+  ideaCategory: string;
+  creatorId: number;
+  creatorName: string;
+  winnerId: number;
+  winnerName: string;
+  winnerEmail: string;
+  winningBid: number;
+  bidCount: number;
+  endTime: string;
+  decidedAt: string;
+}
+
+/** Platform settings, persisted server-side and editable by an administrator. */
+export interface PlatformSettings {
+  platformName: string;
+  supportEmail: string;
+  platformDescription: string;
+  emailNotifications: boolean;
+  ideaApprovalAlerts: boolean;
+  auctionStartAlerts: boolean;
+  auctionEndAlerts: boolean;
+  defaultMinBid: number;
+  defaultBidIncrement: number;
+  auctionDurationHours: number;
+  autoStartAuctions: boolean;
+  autoEndAuctions: boolean;
+  sessionTimeoutMinutes: number;
+  sessionTimeoutEnabled: boolean;
+}
+
+export interface SearchHealth {
+  available: boolean;
+}
+
+export interface ReindexResult {
+  indexed: number;
+  searchAvailable: boolean;
+}
+
+/** The error envelope every backend endpoint returns on failure. */
 export interface ApiError {
+  timestamp?: string;
   status: number;
   error: string;
   message: string;
   path: string;
+  fieldErrors?: { field: string; message: string }[] | null;
 }
 
 // Admin Types
@@ -168,6 +237,14 @@ export interface AdminMetrics {
   closedAuctions: number;
   totalBids: number;
   completedAuctionsWithWinner: number;
+  cancelledAuctions: number;
+  /** Sum of every bid ever placed — bidding activity, not revenue. */
+  totalBidValue: number;
+  /** Sum of winning bids across decided auctions — value actually settled. */
+  settledValue: number;
+  highestWinningBid: number;
+  newUsersLast30Days: number;
+  newUsersPrevious30Days: number;
 }
 
 export interface AdminUser {
@@ -207,6 +284,31 @@ export interface AdminAuction {
   endTime: string;
   bidCount: number;
   highestBid?: number;
+}
+
+/**
+ * Admin auction creation payload.
+ *
+ * `minBid` is the starting price recorded against the idea; `minBidIncrement` is
+ * how much each new bid must exceed the current highest by. They are separate
+ * fields — the two used to be conflated, so a 50,000 minimum bid became a 50,000
+ * gap required between consecutive bids.
+ */
+export interface CreateAuctionPayload {
+  ideaId: number;
+  startTime: string;
+  endTime: string;
+  minBid?: number;
+  minBidIncrement?: number;
+  reservePrice?: number;
+  description?: string;
+}
+
+export interface UpdateAuctionPayload {
+  startTime?: string;
+  endTime?: string;
+  minBidIncrement?: number;
+  description?: string;
 }
 
 export interface AdminBid {

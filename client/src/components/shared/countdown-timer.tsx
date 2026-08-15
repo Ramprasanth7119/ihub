@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface CountdownTimerProps {
@@ -20,8 +20,15 @@ function getTimeLeft(end: Date) {
 }
 
 export function CountdownTimer({ endTime, className, onComplete }: CountdownTimerProps) {
-  const end = new Date(endTime);
+  // Memoised so the effect below sees a stable value. Constructing the Date inline
+  // produced a new object every render, tearing down and recreating the interval
+  // on each tick.
+  const end = useMemo(() => new Date(endTime), [endTime]);
   const [time, setTime] = useState(() => getTimeLeft(end));
+
+  // `onComplete` is behaviour, not a dependency: callers pass inline arrows, and
+  // treating it as reactive would restart the countdown on every parent render.
+  const handleComplete = useEffectEvent(() => onComplete?.());
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -29,25 +36,34 @@ export function CountdownTimer({ endTime, className, onComplete }: CountdownTime
       setTime(next);
       if (next.expired) {
         clearInterval(interval);
-        onComplete?.();
+        handleComplete();
       }
     }, 1000);
-    return () => clearInterval(interval);
-  }, [endTime, onComplete, end]);
 
-  if (time.expired) {
-    return <span className={cn("font-mono text-slate-500", className)}>Ended</span>;
+    return () => clearInterval(interval);
+  }, [end]);
+
+  const displayed = time;
+
+  if (displayed.expired) {
+    return (
+      <span className={cn("font-mono text-slate-500", className)}>Ended</span>
+    );
   }
 
   const parts = [
-    time.days > 0 && `${time.days}d`,
-    `${String(time.hours).padStart(2, "0")}h`,
-    `${String(time.minutes).padStart(2, "0")}m`,
-    `${String(time.seconds).padStart(2, "0")}s`,
+    displayed.days > 0 && `${displayed.days}d`,
+    `${String(displayed.hours).padStart(2, "0")}h`,
+    `${String(displayed.minutes).padStart(2, "0")}m`,
+    `${String(displayed.seconds).padStart(2, "0")}s`,
   ].filter(Boolean);
 
   return (
-    <span className={cn("font-mono text-emerald-400 tabular-nums", className)}>
+    <span
+      className={cn("font-mono tabular-nums text-emerald-400", className)}
+      // Announced politely so screen readers aren't interrupted every second.
+      aria-live="off"
+    >
       {parts.join(" ")}
     </span>
   );

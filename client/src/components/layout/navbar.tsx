@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { Menu, X, Zap } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth-store";
-import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/#features", label: "Features" },
@@ -19,18 +18,13 @@ export function Navbar() {
   const pathname = usePathname();
   const isLanding = pathname === "/";
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  
-  // Call the hook unconditionally at the top level
-  const checkAuth = useAuthStore((s) => s.isAuthenticated);
-  
-  // Safely check auth status only after mounting to prevent hydration errors
-  const isAuthenticated = mounted ? checkAuth() : false;
 
-  // Set mounted to true once the client loads the component
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // The auth store sets `isHydrated` from zustand's rehydration callback, which is
+  // false on the server and on the first client render — the same signal a local
+  // `mounted` flag provided, without needing an effect to set it.
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAuthenticated = isHydrated && Boolean(accessToken);
 
   return (
     <motion.header
@@ -80,7 +74,8 @@ export function Navbar() {
         <button
           className="md:hidden text-white"
           onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
         >
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>

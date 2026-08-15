@@ -98,33 +98,59 @@ public class IdeaDao {
         );
     }
 
-    public List<Idea> findIdeas(String status, String category, Double minBudget, Double maxBudget, Long creatorId) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM ideas WHERE status != 'ARCHIVED'");
+    public List<Idea> findIdeas(String status, String category, Double minBudget, Double maxBudget,
+                                Long creatorId, int limit, int offset) {
         MapSqlParameterSource params = new MapSqlParameterSource();
+        String where = buildIdeaFilter(status, category, minBudget, maxBudget, creatorId, params);
+
+        // Tie-break on id so paging stays stable when several ideas share a timestamp.
+        String sql = "SELECT * FROM ideas WHERE " + where
+                + " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", limit);
+        params.addValue("offset", offset);
+
+        return jdbcTemplate.query(sql, params, ideaRowMapper);
+    }
+
+    public long countIdeas(String status, String category, Double minBudget, Double maxBudget, Long creatorId) {
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        String where = buildIdeaFilter(status, category, minBudget, maxBudget, creatorId, params);
+
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM ideas WHERE " + where, params, Long.class);
+        return count != null ? count : 0L;
+    }
+
+    /**
+     * Builds the shared WHERE clause for listing and counting. Only fixed SQL fragments
+     * are appended here — every user-supplied value is bound as a named parameter.
+     */
+    private String buildIdeaFilter(String status, String category, Double minBudget, Double maxBudget,
+                                   Long creatorId, MapSqlParameterSource params) {
+        StringBuilder where = new StringBuilder("status != 'ARCHIVED'");
 
         if (status != null && !status.isBlank()) {
-            sql.append(" AND status = :status");
+            where.append(" AND status = :status");
             params.addValue("status", status.toUpperCase());
         }
         if (category != null && !category.isBlank()) {
-            sql.append(" AND category = :category");
+            where.append(" AND category = :category");
             params.addValue("category", category.toLowerCase());
         }
         if (minBudget != null) {
-            sql.append(" AND max_budget >= :minBudget");
+            where.append(" AND max_budget >= :minBudget");
             params.addValue("minBudget", minBudget);
         }
         if (maxBudget != null) {
-            sql.append(" AND base_price <= :maxBudget");
+            where.append(" AND base_price <= :maxBudget");
             params.addValue("maxBudget", maxBudget);
         }
         if (creatorId != null) {
-            sql.append(" AND creator_id = :creatorId");
+            where.append(" AND creator_id = :creatorId");
             params.addValue("creatorId", creatorId);
         }
 
-        sql.append(" ORDER BY created_at DESC");
-        return jdbcTemplate.query(sql.toString(), params, ideaRowMapper);
+        return where.toString();
     }
 
     public boolean existsUser(Long userId) {

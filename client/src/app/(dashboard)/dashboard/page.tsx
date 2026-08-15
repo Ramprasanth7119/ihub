@@ -6,7 +6,6 @@ import { useAuthStore } from "@/store/auth-store";
 import { CreatorDashboard } from "@/features/dashboard/creator-dashboard";
 import { InvestorDashboard } from "@/features/dashboard/investor-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDefaultDashboardPath } from "@/lib/middleware-auth";
 
 export default function DashboardPage() {
   const router = useRouter();

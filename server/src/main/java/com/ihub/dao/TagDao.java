@@ -6,7 +6,9 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -65,17 +67,32 @@ public class TagDao {
         }
     }
 
-    public List<String> findTagNamesByIdeaIds(List<Long> ideaIds) {
+    /**
+     * Loads the tags for many ideas in a single round trip, keyed by idea id.
+     *
+     * <p>Mapping a list of ideas used to call {@link #findTagNamesByIdeaId} once per
+     * idea, which is an N+1 query against {@code idea_tags}. Callers that render a
+     * collection should use this instead; ideas with no tags are simply absent from
+     * the map.</p>
+     */
+    public Map<Long, List<String>> findTagNamesGroupedByIdeaIds(List<Long> ideaIds) {
         if (ideaIds == null || ideaIds.isEmpty()) {
-            return Collections.emptyList();
+            return Collections.emptyMap();
         }
+
         String sql = """
-            SELECT t.name
+            SELECT it.idea_id AS idea_id, t.name AS name
             FROM tags t
             INNER JOIN idea_tags it ON it.tag_id = t.id
             WHERE it.idea_id IN (:ideaIds)
-            ORDER BY t.name
+            ORDER BY it.idea_id, t.name
         """;
-        return jdbcTemplate.queryForList(sql, Map.of("ideaIds", ideaIds), String.class);
+
+        Map<Long, List<String>> grouped = new LinkedHashMap<>();
+        jdbcTemplate.query(sql, Map.of("ideaIds", ideaIds), rs -> {
+            Long ideaId = rs.getLong("idea_id");
+            grouped.computeIfAbsent(ideaId, key -> new ArrayList<>()).add(rs.getString("name"));
+        });
+        return grouped;
     }
 }

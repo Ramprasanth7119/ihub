@@ -50,11 +50,17 @@ public class AuctionDao {
         );
     }
 
+    /**
+     * True when the idea already has an auction that is scheduled or running.
+     *
+     * <p>Terminal states are excluded: a closed or cancelled auction must not
+     * permanently block the idea from being auctioned again.</p>
+     */
     public boolean auctionExistsForIdea(Long ideaId) {
         Integer count = jdbcTemplate.queryForObject(
                 """
                     SELECT COUNT(*) FROM auctions
-                    WHERE idea_id = :ideaId AND status != 'CLOSED'
+                    WHERE idea_id = :ideaId AND status NOT IN ('CLOSED', 'CANCELLED')
                 """,
                 Map.of("ideaId", ideaId),
                 Integer.class
@@ -91,17 +97,52 @@ public class AuctionDao {
         );
     }
 
-    public List<Auction> findAuctions(String status) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM auctions WHERE 1=1");
+    public List<Auction> findAuctions(String status, int limit, int offset) {
         MapSqlParameterSource params = new MapSqlParameterSource();
+        String where = buildAuctionFilter(status, params);
 
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = :status");
-            params.addValue("status", status.toUpperCase());
+        String sql = "SELECT * FROM auctions WHERE " + where
+                + " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset";
+        params.addValue("limit", limit);
+        params.addValue("offset", offset);
+
+        return jdbcTemplate.query(sql, params, auctionRowMapper);
+    }
+
+    public long countAuctions(String status) {
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM auctions WHERE " + buildAuctionFilter(status, params),
+                params, Long.class);
+        return count != null ? count : 0L;
+    }
+
+    private String buildAuctionFilter(String status, MapSqlParameterSource params) {
+        if (status == null || status.isBlank()) {
+            return "1=1";
         }
+        params.addValue("status", status.toUpperCase());
+        return "status = :status";
+    }
 
-        sql.append(" ORDER BY created_at DESC");
-        return jdbcTemplate.query(sql.toString(), params, auctionRowMapper);
+    /** Loads the idea title and creator alongside the auction, for detail views. */
+    public Map<String, Object> findAuctionDetail(Long auctionId) {
+        try {
+            String sql = """
+                SELECT a.id, a.idea_id, a.start_time, a.end_time, a.min_bid_increment,
+                       a.status, a.created_at,
+                       i.title AS idea_title, i.description AS idea_description,
+                       i.category AS idea_category, i.base_price,
+                       u.id AS creator_id, u.name AS creator_name
+                FROM auctions a
+                INNER JOIN ideas i ON i.id = a.idea_id
+                INNER JOIN users u ON u.id = i.creator_id
+                WHERE a.id = :id
+            """;
+            return jdbcTemplate.queryForMap(sql, Map.of("id", auctionId));
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
     }
 
     public Map<String, Object> findWinnerByAuctionId(Long auctionId) {

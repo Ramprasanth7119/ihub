@@ -4,8 +4,16 @@ import com.ihub.dto.*;
 import com.ihub.service.AdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
+/**
+ * Admin console API. Every route is gated on {@code ROLE_ADMIN} by
+ * {@code SecurityConfig}, and re-checked against the live user record in
+ * {@code AdminService.assertAdmin()}.
+ */
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -16,7 +24,8 @@ public class AdminController {
         this.adminService = adminService;
     }
 
-    // Dashboard
+    // ---------------------------------------------------------------- Dashboard
+
     @GetMapping("/dashboard")
     public AdminDashboardResponse getDashboard() {
         return adminService.getDashboard();
@@ -32,7 +41,8 @@ public class AdminController {
         return adminService.getDashboardChartData();
     }
 
-    // User Management
+    // ---------------------------------------------------------- User management
+
     @GetMapping("/users")
     public AdminPageResponse<AdminUserResponse> getUsers(
             @RequestParam(required = false) String role,
@@ -49,7 +59,8 @@ public class AdminController {
         return adminService.updateUserStatus(id, request);
     }
 
-    // Idea Management
+    // ---------------------------------------------------------- Idea management
+
     @GetMapping("/ideas")
     public AdminPageResponse<AdminIdeaResponse> getIdeas(
             @RequestParam(required = false) String status,
@@ -68,22 +79,31 @@ public class AdminController {
     }
 
     @DeleteMapping("/ideas/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteIdea(
             @PathVariable Long id,
             HttpServletRequest httpRequest) {
         adminService.deleteIdea(id, httpRequest);
     }
 
-    // Auction Management
+    // ------------------------------------------------------- Auction management
+
     @GetMapping("/auctions")
     public AdminPageResponse<AdminAuctionSummaryResponse> getAuctions(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false, defaultValue = "0") Integer page,
             @RequestParam(required = false) Integer size) {
-        return adminService.getAuctions(status, page, size);
+        return adminService.getAuctions(status, search, page, size);
+    }
+
+    @GetMapping("/auctions/{id}")
+    public AdminAuctionSummaryResponse getAuction(@PathVariable Long id) {
+        return adminService.getAuction(id);
     }
 
     @PostMapping("/auctions")
+    @ResponseStatus(HttpStatus.CREATED)
     public AdminAuctionSummaryResponse createAuction(
             @Valid @RequestBody CreateAuctionRequest request,
             HttpServletRequest httpRequest) {
@@ -91,6 +111,7 @@ public class AdminController {
     }
 
     @PatchMapping("/auctions/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateAuction(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAuctionRequest request,
@@ -99,6 +120,7 @@ public class AdminController {
     }
 
     @PostMapping("/auctions/{id}/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cancelAuction(
             @PathVariable Long id,
             HttpServletRequest httpRequest) {
@@ -106,6 +128,7 @@ public class AdminController {
     }
 
     @PostMapping("/auctions/{id}/start")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void startAuction(
             @PathVariable Long id,
             HttpServletRequest httpRequest) {
@@ -113,13 +136,23 @@ public class AdminController {
     }
 
     @PostMapping("/auctions/{id}/end")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void endAuction(
             @PathVariable Long id,
             HttpServletRequest httpRequest) {
         adminService.endAuction(id, httpRequest);
     }
 
-    // Bid Management
+    /** Decided auctions joined with idea, creator and winner in a single query. */
+    @GetMapping("/winners")
+    public AdminPageResponse<AuctionWinnerSummaryResponse> getWinners(
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            @RequestParam(required = false) Integer size) {
+        return adminService.getWinners(page, size);
+    }
+
+    // ------------------------------------------------------------------- Bids
+
     @GetMapping("/bids")
     public AdminPageResponse<AdminBidResponse> getBids(
             @RequestParam(required = false) Long auctionId,
@@ -129,7 +162,8 @@ public class AdminController {
         return adminService.getBids(auctionId, investorId, page, size);
     }
 
-    // Audit Logs
+    // ------------------------------------------------------------- Audit logs
+
     @GetMapping("/audit-logs")
     public AdminPageResponse<AdminAuditLogResponse> getAuditLogs(
             @RequestParam(required = false) String action,
@@ -137,5 +171,32 @@ public class AdminController {
             @RequestParam(required = false, defaultValue = "0") Integer page,
             @RequestParam(required = false) Integer size) {
         return adminService.getAuditLogs(action, entityType, page, size);
+    }
+
+    // ---------------------------------------------------------------- Settings
+
+    @GetMapping("/settings")
+    public PlatformSettingsResponse getSettings() {
+        return adminService.getPlatformSettings();
+    }
+
+    @PutMapping("/settings")
+    public PlatformSettingsResponse updateSettings(
+            @Valid @RequestBody PlatformSettingsRequest request,
+            HttpServletRequest httpRequest) {
+        return adminService.updatePlatformSettings(request, httpRequest);
+    }
+
+    // ------------------------------------------------------------------ Search
+
+    @GetMapping("/search/health")
+    public Map<String, Object> getSearchHealth() {
+        return adminService.getSearchHealth();
+    }
+
+    /** Rebuilds the Elasticsearch index from MySQL, repairing any drift. */
+    @PostMapping("/search/reindex")
+    public Map<String, Object> reindexSearch(HttpServletRequest httpRequest) {
+        return adminService.reindexSearch(httpRequest);
     }
 }

@@ -20,7 +20,6 @@ import { formatCurrency, getStatusColor } from "@/lib/utils";
 export default function IdeaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const ideaId = Number(id);
-  const role = useAuthStore((s) => s.role);
   const userId = useAuthStore((s) => s.user?.id);
 
   const { data: idea, isLoading, isError, refetch } = useQuery({

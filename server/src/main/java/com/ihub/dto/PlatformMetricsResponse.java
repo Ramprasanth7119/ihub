@@ -16,6 +16,22 @@ public class PlatformMetricsResponse {
     private long closedAuctions;
     private long totalBids;
     private long completedAuctionsWithWinner;
+    private long cancelledAuctions;
+
+    /** Sum of every bid amount ever placed — total bidding activity, not revenue. */
+    private double totalBidValue;
+
+    /** Sum of the winning bids across decided auctions — the value actually settled. */
+    private double settledValue;
+
+    /** Highest single winning bid on the platform. */
+    private double highestWinningBid;
+
+    /** Users who registered in the last 30 days, for a real growth figure. */
+    private long newUsersLast30Days;
+
+    /** Users who registered in the 30 days before that, as the comparison baseline. */
+    private long newUsersPrevious30Days;
 
     public long getTotalUsers() {
         return totalUsers;
@@ -127,5 +143,53 @@ public class PlatformMetricsResponse {
 
     public void setCompletedAuctionsWithWinner(long completedAuctionsWithWinner) {
         this.completedAuctionsWithWinner = completedAuctionsWithWinner;
+    }
+
+    public long getCancelledAuctions() {
+        return cancelledAuctions;
+    }
+
+    public void setCancelledAuctions(long cancelledAuctions) {
+        this.cancelledAuctions = cancelledAuctions;
+    }
+
+    public double getTotalBidValue() {
+        return totalBidValue;
+    }
+
+    public void setTotalBidValue(double totalBidValue) {
+        this.totalBidValue = totalBidValue;
+    }
+
+    public double getSettledValue() {
+        return settledValue;
+    }
+
+    public void setSettledValue(double settledValue) {
+        this.settledValue = settledValue;
+    }
+
+    public double getHighestWinningBid() {
+        return highestWinningBid;
+    }
+
+    public void setHighestWinningBid(double highestWinningBid) {
+        this.highestWinningBid = highestWinningBid;
+    }
+
+    public long getNewUsersLast30Days() {
+        return newUsersLast30Days;
+    }
+
+    public void setNewUsersLast30Days(long newUsersLast30Days) {
+        this.newUsersLast30Days = newUsersLast30Days;
+    }
+
+    public long getNewUsersPrevious30Days() {
+        return newUsersPrevious30Days;
+    }
+
+    public void setNewUsersPrevious30Days(long newUsersPrevious30Days) {
+        this.newUsersPrevious30Days = newUsersPrevious30Days;
     }
 }

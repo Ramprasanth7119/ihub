@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/admin-sidebar";
 import { AdminHeader } from "@/components/layout/admin-header";
 import { AdminMobileNav } from "@/components/layout/admin-mobile-nav";
 import { useRequireAuth } from "@/hooks/use-auth";
+import { useNotificationsSocket } from "@/hooks/use-notifications-socket";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ADMIN_NAV_ITEMS } from "@/constants/admin-nav";
@@ -16,6 +17,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
+
+  // Admins receive notifications too (idea moderation, auction outcomes), but the
+  // console never subscribed, so the header bell had nothing to count.
+  useNotificationsSocket();
 
   if (!auth.isHydrated) {
     return (
@@ -39,7 +44,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    // data-surface marks this subtree as the light admin console, so shared
+    // components styled for the dark public app re-colour themselves here.
+    <div data-surface="light" className="flex min-h-screen bg-gray-50">
       <Sidebar />
 
       {sideDrawerOpen && (

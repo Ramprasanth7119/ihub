@@ -5,17 +5,23 @@ import com.ihub.dao.RefreshTokenDao;
 import com.ihub.dto.AuthResponse;
 import com.ihub.dto.LoginRequest;
 import com.ihub.dto.RefreshTokenRequest;
-import com.ihub.exception.CustomException;
+import com.ihub.exception.ForbiddenException;
+import com.ihub.exception.UnauthorizedException;
 import com.ihub.security.JwtUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final AuthDao authDao;
     private final RefreshTokenDao refreshTokenDao;
@@ -35,20 +41,27 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        Map<String, Object> user = authDao.getUserByEmail(request.getEmail());
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase(Locale.ROOT) : "";
+        Map<String, Object> user = authDao.getUserByEmail(email);
 
+        // Both branches return the same message so the response cannot be used to
+        // discover which email addresses are registered.
         if (user == null) {
-            throw new CustomException("Invalid credentials");
+            log.debug("Login attempt for unknown account");
+            throw new UnauthorizedException("Invalid email or password");
         }
 
         String dbPassword = (String) user.get("password");
-
         if (!passwordEncoder.matches(request.getPassword(), dbPassword)) {
-            throw new CustomException("Invalid credentials");
+            log.debug("Login attempt with bad password for user {}", user.get("id"));
+            throw new UnauthorizedException("Invalid email or password");
         }
 
-        if (Boolean.FALSE.equals(user.get("active"))) {
-            throw new CustomException("Account is suspended");
+        // MySQL reports BOOLEAN as TINYINT, which the driver may hand back as a
+        // Boolean or a Number depending on the column definition — accept both
+        // rather than silently letting suspended accounts through.
+        if (!isActive(user.get("active"))) {
+            throw new ForbiddenException("Your account has been suspended. Please contact support.");
         }
 
         return issueTokens(
@@ -58,12 +71,18 @@ public class AuthService {
         );
     }
 
+    /**
+     * Exchanges a refresh token for a fresh pair.
+     *
+     * <p>Tokens are rotated: the presented token is revoked before a new one is
+     * issued, so a stolen token is single-use.</p>
+     */
     @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
         Map<String, Object> stored = refreshTokenDao.findValidToken(request.getRefreshToken());
 
         if (stored == null) {
-            throw new CustomException("Invalid or expired refresh token");
+            throw new UnauthorizedException("Invalid or expired refresh token");
         }
 
         refreshTokenDao.revoke(request.getRefreshToken());
@@ -77,7 +96,28 @@ public class AuthService {
 
     @Transactional
     public void logout(RefreshTokenRequest request) {
+        // Idempotent by design: logging out twice, or with a token that was already
+        // rotated away, is not an error.
         refreshTokenDao.revoke(request.getRefreshToken());
+    }
+
+    /** Purges tokens that expired or were revoked more than a week ago. */
+    @Transactional
+    public int purgeExpiredRefreshTokens() {
+        return refreshTokenDao.deleteExpired();
+    }
+
+    private boolean isActive(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        return true;
     }
 
     private AuthResponse issueTokens(Long userId, String email, String role) {

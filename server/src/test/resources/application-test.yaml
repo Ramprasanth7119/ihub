@@ -1,0 +1,57 @@
+# Test configuration.
+#
+# The suite runs against in-memory H2 in MySQL-compatibility mode so `mvn test`
+# needs no MySQL, no Elasticsearch and no exported secrets. Production always runs
+# on real MySQL; anything that depends on MySQL-only SQL is covered by the
+# API-level tests rather than here.
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:ihub_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  # The migrations use MySQL-specific DDL (STORED generated columns, INSERT IGNORE),
+  # and maintaining a parallel H2 copy of the schema would only drift from it. The
+  # context test verifies wiring; business rules are covered by unit tests with
+  # mocked DAOs, and the SQL itself is exercised against real MySQL by the API suite.
+  flyway:
+    enabled: false
+
+  sql:
+    init:
+      mode: never
+
+  elasticsearch:
+    uris: http://localhost:9200
+
+  security:
+    jwt:
+      secret: test-only-signing-secret-that-is-long-enough-for-hs256
+      expiration: 3600000
+      refresh-expiration: 604800000
+
+  mail:
+    host: ""
+
+ihub:
+  cors:
+    allowed-origins: http://localhost:3000
+  notification:
+    email-enabled: false
+    outbox:
+      # "-" is Spring's disabled-cron marker: schedulers are invoked directly in
+      # tests rather than firing on a timer during the build.
+      cron: "-"
+
+auction:
+  cron:
+    lifecycle: "-"
+    token-cleanup: "-"
+  default-min-bid-increment: 100
+
+logging:
+  level:
+    root: WARN
+    com.ihub: WARN

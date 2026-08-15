@@ -18,26 +18,75 @@ public class AdminDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Platform-wide counters for the admin dashboard.
+     *
+     * <p>Grouped into four aggregate queries using conditional sums rather than one
+     * {@code COUNT(*)} per figure — this used to issue 14 separate round trips on
+     * every dashboard load, and the dashboard is the admin console's landing page.</p>
+     */
     public PlatformMetricsResponse fetchPlatformMetrics() {
         PlatformMetricsResponse metrics = new PlatformMetricsResponse();
 
-        metrics.setTotalUsers(count("SELECT COUNT(*) FROM users"));
-        metrics.setTotalCreators(count("SELECT COUNT(*) FROM users WHERE role = 'CREATOR'"));
-        metrics.setTotalInvestors(count("SELECT COUNT(*) FROM users WHERE role = 'INVESTOR'"));
-        metrics.setTotalAdmins(count("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'"));
-        metrics.setActiveUsers(count("SELECT COUNT(*) FROM users WHERE active = true"));
+        jdbcTemplate.query("""
+            SELECT COUNT(*) AS total,
+                   SUM(role = 'CREATOR')  AS creators,
+                   SUM(role = 'INVESTOR') AS investors,
+                   SUM(role = 'ADMIN')    AS admins,
+                   SUM(active = TRUE)     AS active_users,
+                   SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS new_last_30,
+                   SUM(created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+                       AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)) AS new_prev_30
+            FROM users
+        """, rs -> {
+            metrics.setTotalUsers(rs.getLong("total"));
+            metrics.setTotalCreators(rs.getLong("creators"));
+            metrics.setTotalInvestors(rs.getLong("investors"));
+            metrics.setTotalAdmins(rs.getLong("admins"));
+            metrics.setActiveUsers(rs.getLong("active_users"));
+            metrics.setNewUsersLast30Days(rs.getLong("new_last_30"));
+            metrics.setNewUsersPrevious30Days(rs.getLong("new_prev_30"));
+        });
 
-        metrics.setTotalIdeas(count("SELECT COUNT(*) FROM ideas WHERE status != 'ARCHIVED'"));
-        metrics.setPublishedIdeas(count("SELECT COUNT(*) FROM ideas WHERE status = 'PUBLISHED'"));
-        metrics.setDraftIdeas(count("SELECT COUNT(*) FROM ideas WHERE status = 'DRAFT'"));
+        jdbcTemplate.query("""
+            SELECT SUM(status <> 'ARCHIVED')  AS total,
+                   SUM(status = 'PUBLISHED')  AS published,
+                   SUM(status = 'DRAFT')      AS drafts
+            FROM ideas
+        """, rs -> {
+            metrics.setTotalIdeas(rs.getLong("total"));
+            metrics.setPublishedIdeas(rs.getLong("published"));
+            metrics.setDraftIdeas(rs.getLong("drafts"));
+        });
 
-        metrics.setTotalAuctions(count("SELECT COUNT(*) FROM auctions"));
-        metrics.setScheduledAuctions(count("SELECT COUNT(*) FROM auctions WHERE status = 'SCHEDULED'"));
-        metrics.setActiveAuctions(count("SELECT COUNT(*) FROM auctions WHERE status = 'ACTIVE'"));
-        metrics.setClosedAuctions(count("SELECT COUNT(*) FROM auctions WHERE status = 'CLOSED'"));
+        jdbcTemplate.query("""
+            SELECT COUNT(*) AS total,
+                   SUM(status = 'SCHEDULED') AS scheduled,
+                   SUM(status = 'ACTIVE')    AS active,
+                   SUM(status = 'CLOSED')    AS closed,
+                   SUM(status = 'CANCELLED') AS cancelled
+            FROM auctions
+        """, rs -> {
+            metrics.setTotalAuctions(rs.getLong("total"));
+            metrics.setScheduledAuctions(rs.getLong("scheduled"));
+            metrics.setActiveAuctions(rs.getLong("active"));
+            metrics.setClosedAuctions(rs.getLong("closed"));
+            metrics.setCancelledAuctions(rs.getLong("cancelled"));
+        });
 
-        metrics.setTotalBids(count("SELECT COUNT(*) FROM bids"));
-        metrics.setCompletedAuctionsWithWinner(count("SELECT COUNT(*) FROM auction_winners"));
+        jdbcTemplate.query("""
+            SELECT (SELECT COUNT(*) FROM bids)                     AS bid_count,
+                   (SELECT COALESCE(SUM(bid_amount), 0) FROM bids) AS bid_value,
+                   (SELECT COUNT(*) FROM auction_winners)          AS decided,
+                   (SELECT COALESCE(SUM(winning_bid), 0) FROM auction_winners) AS settled_value,
+                   (SELECT COALESCE(MAX(winning_bid), 0) FROM auction_winners) AS highest_win
+        """, rs -> {
+            metrics.setTotalBids(rs.getLong("bid_count"));
+            metrics.setTotalBidValue(rs.getDouble("bid_value"));
+            metrics.setCompletedAuctionsWithWinner(rs.getLong("decided"));
+            metrics.setSettledValue(rs.getDouble("settled_value"));
+            metrics.setHighestWinningBid(rs.getDouble("highest_win"));
+        });
 
         return metrics;
     }
@@ -68,7 +117,11 @@ public class AdminDao {
         });
     }
 
-    public List<AdminAuctionSummaryResponse> findAuctionsForAdmin(String status, int limit, int offset) {
+    public List<AdminAuctionSummaryResponse> findAuctionsForAdmin(String status, String search, int limit, int offset) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("limit", limit)
+                .addValue("offset", offset);
+
         StringBuilder sql = new StringBuilder("""
             SELECT a.id, a.idea_id, i.title AS idea_title, a.status,
                    a.start_time, a.end_time,
@@ -76,17 +129,10 @@ public class AdminDao {
                    (SELECT MAX(b.bid_amount) FROM bids b WHERE b.auction_id = a.id) AS highest_bid
             FROM auctions a
             INNER JOIN ideas i ON i.id = a.idea_id
-            WHERE 1=1
+            WHERE
         """);
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("limit", limit)
-                .addValue("offset", offset);
-
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND a.status = :status");
-            params.addValue("status", status.toUpperCase());
-        }
-        sql.append(" ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset");
+        sql.append(auctionAdminFilter(status, search, params));
+        sql.append(" ORDER BY a.created_at DESC, a.id DESC LIMIT :limit OFFSET :offset");
 
         return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> {
             AdminAuctionSummaryResponse item = new AdminAuctionSummaryResponse();
@@ -131,12 +177,37 @@ public class AdminDao {
         }
     }
 
-    public long countAuctionsForAdmin(String status) {
-        if (status == null || status.isBlank()) {
-            return count("SELECT COUNT(*) FROM auctions");
+    public long countAuctionsForAdmin(String status, String search) {
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        String sql = """
+            SELECT COUNT(*)
+            FROM auctions a
+            INNER JOIN ideas i ON i.id = a.idea_id
+            WHERE
+        """ + auctionAdminFilter(status, search, params);
+
+        Long total = jdbcTemplate.queryForObject(sql, params, Long.class);
+        return total != null ? total : 0L;
+    }
+
+    /**
+     * Shared filter for the admin auction list and its count. The search term matches
+     * the idea title or the auction id, and is bound as a parameter rather than
+     * concatenated — only the fixed {@code LIKE} fragment is appended to the SQL.
+     */
+    private String auctionAdminFilter(String status, String search, MapSqlParameterSource params) {
+        StringBuilder where = new StringBuilder("1=1");
+
+        if (status != null && !status.isBlank()) {
+            where.append(" AND a.status = :status");
+            params.addValue("status", status.toUpperCase());
         }
-        return count("SELECT COUNT(*) FROM auctions WHERE status = :status",
-                Map.of("status", status.toUpperCase()));
+        if (search != null && !search.isBlank()) {
+            where.append(" AND (i.title LIKE :search OR CAST(a.id AS CHAR) LIKE :search)");
+            params.addValue("search", "%" + search.trim() + "%");
+        }
+
+        return where.toString();
     }
 
     public List<AdminUserResponse> findUsersForAdmin(String role, Boolean active, int limit, int offset) {
@@ -453,20 +524,25 @@ public class AdminDao {
         return count != null ? count : 0;
     }
 
-    // Audit Logs
+    /**
+     * Records an administrative action.
+     *
+     * <p>Uses {@link MapSqlParameterSource} rather than {@code Map.of}, which throws
+     * on null values — platform-wide actions such as a settings change or a search
+     * reindex have no entity id, and the IP address can be absent too.</p>
+     */
     public void createAuditLog(Long adminId, String action, String entityType, Long entityId, String details, String ipAddress) {
         String sql = """
             INSERT INTO admin_audit_logs (admin_id, action, entity_type, entity_id, details, ip_address)
             VALUES (:adminId, :action, :entityType, :entityId, :details, :ipAddress)
         """;
-        jdbcTemplate.update(sql, Map.of(
-                "adminId", adminId,
-                "action", action,
-                "entityType", entityType,
-                "entityId", entityId,
-                "details", details,
-                "ipAddress", ipAddress
-        ));
+        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("adminId", adminId)
+                .addValue("action", action)
+                .addValue("entityType", entityType)
+                .addValue("entityId", entityId)
+                .addValue("details", details)
+                .addValue("ipAddress", ipAddress));
     }
 
     public List<AdminAuditLogResponse> findAuditLogs(String action, String entityType, int limit, int offset) {
@@ -669,5 +745,83 @@ public class AdminDao {
 
         sql.append(String.join(", ", updates)).append(" WHERE id = :id");
         return jdbcTemplate.update(sql.toString(), params);
+    }
+
+    /**
+     * Revokes every outstanding refresh token for a user. Called when an admin
+     * suspends an account so existing sessions cannot be silently refreshed.
+     */
+    public int revokeRefreshTokensForUser(Long userId) {
+        return jdbcTemplate.update(
+                "UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = :userId AND revoked = FALSE",
+                Map.of("userId", userId)
+        );
+    }
+
+    /** Auctions that produced a winner, newest first, for the admin winners report. */
+    public List<AuctionWinnerSummaryResponse> findWinners(int limit, int offset) {
+        String sql = """
+            SELECT aw.auction_id, aw.winner_id, aw.winning_bid, aw.created_at AS decided_at,
+                   w.name AS winner_name, w.email AS winner_email,
+                   i.id AS idea_id, i.title AS idea_title, i.category AS idea_category,
+                   c.id AS creator_id, c.name AS creator_name,
+                   a.end_time,
+                   (SELECT COUNT(*) FROM bids b WHERE b.auction_id = aw.auction_id) AS bid_count
+            FROM auction_winners aw
+            INNER JOIN auctions a ON a.id = aw.auction_id
+            INNER JOIN ideas i ON i.id = a.idea_id
+            INNER JOIN users w ON w.id = aw.winner_id
+            INNER JOIN users c ON c.id = i.creator_id
+            ORDER BY aw.created_at DESC, aw.auction_id DESC
+            LIMIT :limit OFFSET :offset
+        """;
+
+        return jdbcTemplate.query(sql, Map.of("limit", limit, "offset", offset), (rs, rowNum) -> {
+            AuctionWinnerSummaryResponse response = new AuctionWinnerSummaryResponse();
+            response.setAuctionId(rs.getLong("auction_id"));
+            response.setIdeaId(rs.getLong("idea_id"));
+            response.setIdeaTitle(rs.getString("idea_title"));
+            response.setIdeaCategory(rs.getString("idea_category"));
+            response.setCreatorId(rs.getLong("creator_id"));
+            response.setCreatorName(rs.getString("creator_name"));
+            response.setWinnerId(rs.getLong("winner_id"));
+            response.setWinnerName(rs.getString("winner_name"));
+            response.setWinnerEmail(rs.getString("winner_email"));
+            response.setWinningBid(rs.getDouble("winning_bid"));
+            response.setBidCount(rs.getInt("bid_count"));
+            response.setEndTime(toLocalDateTime(rs.getTimestamp("end_time")));
+            response.setDecidedAt(toLocalDateTime(rs.getTimestamp("decided_at")));
+            return response;
+        });
+    }
+
+    public long countWinners() {
+        return count("SELECT COUNT(*) FROM auction_winners");
+    }
+
+    /**
+     * Current auction status per idea, for rebuilding the search index in one pass
+     * instead of querying per document.
+     */
+    public Map<Long, String> findLatestAuctionStatusByIdea() {
+        String sql = """
+            SELECT a.idea_id, a.status
+            FROM auctions a
+            INNER JOIN (
+                SELECT idea_id, MAX(id) AS latest_id
+                FROM auctions
+                GROUP BY idea_id
+            ) newest ON newest.latest_id = a.id
+        """;
+
+        Map<Long, String> statuses = new java.util.HashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            statuses.put(rs.getLong("idea_id"), rs.getString("status"));
+        });
+        return statuses;
+    }
+
+    private static LocalDateTime toLocalDateTime(java.sql.Timestamp timestamp) {
+        return timestamp != null ? timestamp.toLocalDateTime() : null;
     }
 }

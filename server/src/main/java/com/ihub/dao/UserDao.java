@@ -3,7 +3,7 @@ package com.ihub.dao;
 import com.ihub.dto.UserRequest;
 import com.ihub.mapper.UserRowMapper;
 import com.ihub.model.User;
-import lombok.RequiredArgsConstructor;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -65,24 +65,82 @@ public class UserDao {
         );
     }
     
+    /**
+     * Looks a user up by email.
+     *
+     * @return the user, or {@code null} when no such account exists — callers treat
+     *         a missing principal as an authentication failure rather than a 404,
+     *         so this returns null instead of throwing.
+     */
     public User findByEmail(String email) {
 
         String sql = "SELECT * FROM users WHERE email = :email";
 
-        return jdbcTemplate.queryForObject(
-                sql,
+        try {
+            return jdbcTemplate.queryForObject(sql, Map.of("email", email), userRowMapper);
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
+    }
+
+    public boolean emailExists(String email) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE email = :email",
                 Map.of("email", email),
-                userRowMapper
+                Integer.class
+        );
+        return count != null && count > 0;
+    }
+
+    /**
+     * Fetch a page of users. Admin-only at the controller layer — this exposes the
+     * full account list.
+     */
+    public List<User> getAllUsers(int limit, int offset) {
+
+        String sql = """
+            SELECT id, name, email, role FROM users
+            ORDER BY id DESC
+            LIMIT :limit OFFSET :offset
+        """;
+
+        return jdbcTemplate.query(sql, Map.of("limit", limit, "offset", offset), userRowMapper);
+    }
+
+    public long countUsers() {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Map.of(), Long.class);
+        return count != null ? count : 0L;
+    }
+
+    /** Updates the profile fields a user is allowed to change about themselves. */
+    public int updateProfile(Long userId, String name) {
+        return jdbcTemplate.update(
+                "UPDATE users SET name = :name WHERE id = :id",
+                new MapSqlParameterSource()
+                        .addValue("id", userId)
+                        .addValue("name", name)
         );
     }
-    
-    /**
-     * Fetch all users
-     */
-    public List<User> getAllUsers() {
 
-        String sql = "SELECT id, name, email, role FROM users";
+    public int updatePassword(Long userId, String encodedPassword) {
+        return jdbcTemplate.update(
+                "UPDATE users SET password = :password WHERE id = :id",
+                new MapSqlParameterSource()
+                        .addValue("id", userId)
+                        .addValue("password", encodedPassword)
+        );
+    }
 
-        return jdbcTemplate.query(sql, userRowMapper);
+    /** Reads the stored password hash for verification during a password change. */
+    public String findPasswordHash(Long userId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "SELECT password FROM users WHERE id = :id",
+                    Map.of("id", userId),
+                    String.class
+            );
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
     }
 }

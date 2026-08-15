@@ -5,7 +5,8 @@ import com.ihub.dao.NotificationDao;
 import com.ihub.dao.UserDao;
 import com.ihub.dto.NotificationPageResponse;
 import com.ihub.dto.NotificationResponse;
-import com.ihub.exception.CustomException;
+import com.ihub.exception.NotFoundException;
+import com.ihub.exception.UnauthorizedException;
 import com.ihub.model.Notification;
 import com.ihub.model.User;
 import com.ihub.notification.NotificationType;
@@ -85,9 +86,10 @@ public class NotificationService {
     @Transactional
     public void markAsRead(Long notificationId) {
         User user = getAuthenticatedUser();
+        // Scoped by user id, so one user can never mark another user's notification read.
         int updated = notificationDao.markAsRead(notificationId, user.getId());
         if (updated == 0) {
-            throw new CustomException("Notification not found");
+            throw new NotFoundException("Notification not found");
         }
         broadcastService.sendUnreadCount(user.getId(), notificationDao.countByUserId(user.getId(), true));
     }
@@ -135,6 +137,43 @@ public class NotificationService {
         );
     }
 
+    public void notifyAuctionEndingSoon(Long userId, Long auctionId, String ideaTitle, long minutesRemaining) {
+        notifyUser(
+                userId,
+                NotificationType.AUCTION_ENDING_SOON,
+                "Auction ending soon",
+                String.format("The auction for \"%s\" (auction #%d) closes in about %d minute%s.",
+                        ideaTitle, auctionId, minutesRemaining, minutesRemaining == 1 ? "" : "s"),
+                REF_AUCTION,
+                auctionId
+        );
+    }
+
+    public void notifyAuctionCancelled(Long userId, Long auctionId, String ideaTitle) {
+        notifyUser(
+                userId,
+                NotificationType.AUCTION_CANCELLED,
+                "Auction cancelled",
+                String.format("The auction for \"%s\" (auction #%d) has been cancelled. Any bids placed are void.",
+                        ideaTitle, auctionId),
+                REF_AUCTION,
+                auctionId
+        );
+    }
+
+    public void notifyIdeaStatusChanged(Long creatorId, Long ideaId, String ideaTitle, String status, String reason) {
+        String detail = reason != null && !reason.isBlank() ? " Reason: " + reason : "";
+        notifyUser(
+                creatorId,
+                NotificationType.IDEA_STATUS_CHANGED,
+                "Your idea was " + status.toLowerCase(),
+                String.format("The status of \"%s\" was changed to %s by a platform administrator.%s",
+                        ideaTitle, status, detail),
+                "IDEA",
+                ideaId
+        );
+    }
+
     public void notifyWinner(Long winnerId, Long auctionId, String ideaTitle, Double winningBid) {
         notifyUser(
                 winnerId,
@@ -173,11 +212,11 @@ public class NotificationService {
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new CustomException("Authentication required");
+            throw new UnauthorizedException("Authentication required");
         }
         User user = userDao.findByEmail(auth.getName());
         if (user == null) {
-            throw new CustomException("User not found");
+            throw new UnauthorizedException("Authenticated user no longer exists");
         }
         return user;
     }

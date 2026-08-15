@@ -4,6 +4,18 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Secrets — never commit real credentials; .env.example documents the keys ###
+.env
+.env.*
+!.env.example
+
+### Eclipse output dir that was previously committed by mistake ###
+bin/
+
+### JVM crash dumps ###
+hs_err_pid*.log
+replay_pid*.log
+
 ### STS ###
 .apt_generated
 .classpath

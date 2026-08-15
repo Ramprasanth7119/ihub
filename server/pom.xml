@@ -74,6 +74,24 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- 🗂️ SCHEMA MIGRATIONS -->
+        <!-- db/migration was previously Flyway-shaped but never executed, because
+             Flyway was not on the classpath. Adding it makes those files authoritative. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
+        <!-- ❤️ HEALTH / READINESS PROBES for container orchestration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- 🔑 JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -107,6 +125,20 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- In-memory database for repository/integration tests, so the suite runs
+             without a MySQL instance. Production always runs on MySQL. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
 
