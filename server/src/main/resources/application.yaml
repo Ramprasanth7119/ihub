@@ -76,6 +76,14 @@ spring:
     timeout-per-shutdown-phase: 20s
 
 ihub:
+  # Seeds the first administrator on a database that has none. Inert once one
+  # exists, so it can never reset an existing account's password. Set these for a
+  # single boot on a new deployment, then remove them from the environment.
+  bootstrap:
+    admin:
+      email: ${IHUB_ADMIN_EMAIL:}
+      password: ${IHUB_ADMIN_PASSWORD:}
+      name: ${IHUB_ADMIN_NAME:Platform Administrator}
   # Comma-separated origins allowed to call the API directly from a browser.
   # The Next.js client normally proxies through its own rewrites, so this matters
   # for any client that talks to the API cross-origin.

@@ -1,0 +1,118 @@
+# Production stack for a single VM (e.g. an Oracle Cloud Always Free instance).
+#
+# Deliberately a STANDALONE file, not an overlay on docker-compose.yml: Compose
+# MERGES port lists rather than replacing them, so an overlay could not take away
+# the base file's published ports — and on a public VM those would expose MySQL and
+# Elasticsearch to the internet.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Only Caddy is reachable from outside. It terminates TLS and proxies to the
+# backend over the internal Docker network; db, elasticsearch and backend publish
+# nothing to the host.
+
+services:
+  db:
+    image: mysql:8.1
+    container_name: ihub-mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ihub}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    # No `ports:` — reachable only from the other containers.
+    volumes:
+      - ihub_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: ihub-elasticsearch
+    environment:
+      - node.name=es01
+      - discovery.type=single-node
+      - cluster.name=ihub-cluster
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ihub_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'curl -fsS -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
+  backend:
+    build: .
+    image: ihub-backend
+    container_name: ihub-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-ihub}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=${TZ:-UTC}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      ES_URL: http://elasticsearch:9200
+      ES_USERNAME: elastic
+      ES_PASSWORD: ${ELASTIC_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (min 32 chars)}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # Must be the exact public origin of the frontend, or the browser's
+      # WebSocket handshake to /ws is rejected.
+      FRONTEND_URL: ${FRONTEND_URL:?set FRONTEND_URL in .env}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@ihub.com}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # One-time seed for the first administrator. Leave blank after the first
+      # successful boot; it is ignored once an administrator exists.
+      IHUB_ADMIN_EMAIL: ${IHUB_ADMIN_EMAIL:-}
+      IHUB_ADMIN_PASSWORD: ${IHUB_ADMIN_PASSWORD:-}
+      IHUB_ADMIN_NAME: ${IHUB_ADMIN_NAME:-Platform Administrator}
+    depends_on:
+      db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ihub-caddy
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      # Bare hostname, e.g. api.example.com. Caddy obtains and renews a
+      # Let's Encrypt certificate for it automatically.
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ihub_mysql_data:
+  ihub_es_data:
+  caddy_data:
+  caddy_config:

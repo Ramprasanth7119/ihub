@@ -93,6 +93,39 @@ public class UserDao {
     }
 
     /**
+     * True when at least one administrator account exists.
+     *
+     * <p>Registration refuses to self-assign the ADMIN role, so a freshly migrated
+     * database has no way in until one is seeded — see {@code AdminBootstrap}.</p>
+     */
+    public boolean adminExists() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE role = 'ADMIN'",
+                Map.of(),
+                Integer.class
+        );
+        return count != null && count > 0;
+    }
+
+    /** Inserts a pre-hashed account directly. Used only for the initial admin seed. */
+    public Long createUserWithHash(String name, String email, String encodedPassword, String role) {
+        String sql = """
+            INSERT INTO users (name, email, password, role, verified, active, created_at)
+            VALUES (:name, :email, :password, :role, true, true, NOW())
+        """;
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("name", name)
+                .addValue("email", email)
+                .addValue("password", encodedPassword)
+                .addValue("role", role);
+
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(sql, params, keyHolder, new String[]{"id"});
+        return keyHolder.getKey() != null ? keyHolder.getKey().longValue() : null;
+    }
+
+    /**
      * Fetch a page of users. Admin-only at the controller layer — this exposes the
      * full account list.
      */

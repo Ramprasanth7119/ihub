@@ -51,9 +51,12 @@ transactions. DAOs own SQL via `NamedParameterJdbcTemplate` — every value is a
 parameter; only fixed SQL fragments are ever concatenated.
 
 **MySQL is the system of record.** Elasticsearch is a derived read model for
-discovery. Index writes are best-effort and never abort a database transaction, so an
-Elasticsearch outage degrades search without taking the platform down. Drift is
-repaired from **Admin → Settings → Rebuild index**.
+discovery. Index writes are best-effort and never abort a database transaction, and
+the index is created lazily rather than during repository bootstrap — so an
+unreachable cluster degrades search to a 503 without failing application startup or
+taking the platform down. (With Spring Data's default `createIndex`, a cold search
+cluster aborts startup and crash-loops the service.) Drift is repaired from
+**Admin → Settings → Rebuild index**.
 
 ---
 
@@ -367,6 +370,21 @@ exception-to-status mapping. It runs on in-memory H2 with the schedulers disable
 
 ## Deployment
 
+📘 **[DEPLOYMENT.md](DEPLOYMENT.md) is the step-by-step runbook** — a free
+always-on host (Oracle Cloud Always Free) running the whole backend stack, with
+the frontend on Vercel. It covers firewall setup, TLS, the first-administrator
+seed, verification and day-2 operations. The notes below are the summary.
+
+> **Why not a scale-to-zero host?** The auction scheduler must run continuously —
+> if the process sleeps, auctions never open or close on their own.
+
+### First administrator
+
+Registration refuses to self-assign `ADMIN`, so a fresh database has none. Set
+`IHUB_ADMIN_EMAIL` and `IHUB_ADMIN_PASSWORD` (min 12 chars) for one boot; the seed
+is ignored once an administrator exists and can never reset an existing account.
+Blank the variables afterwards.
+
 ### Frontend → Vercel
 
 Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` to your deployed backend. The
@@ -379,6 +397,18 @@ cd server
 docker build -t ihub-backend .
 docker run -p 8081:8081 --env-file .env ihub-backend
 ```
+
+Or the full single-VM stack (backend + MySQL + Elasticsearch + TLS):
+
+```bash
+cd server && cp .env.example .env   # fill it in, then
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+`docker-compose.prod.yml` is standalone rather than an overlay on
+`docker-compose.yml`: Compose merges port lists rather than replacing them, so an
+overlay could not withdraw the dev file's published MySQL and Elasticsearch ports —
+which must not be internet-facing.
 
 The image is multi-stage (build inside, JRE only at runtime), runs as a non-root
 user, respects container memory limits, and exposes a healthcheck.

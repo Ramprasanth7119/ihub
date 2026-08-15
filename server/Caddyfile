@@ -1,0 +1,32 @@
+# TLS termination and reverse proxy for the iHub API.
+#
+# Caddy requests and renews a Let's Encrypt certificate for {$DOMAIN} on its own,
+# provided ports 80 and 443 reach this host from the internet.
+#
+# WebSocket upgrades need no special configuration — reverse_proxy passes the
+# Upgrade/Connection headers through, so STOMP over SockJS at /ws works as-is.
+
+{$DOMAIN} {
+	encode gzip
+
+	# Keep the platform's own error envelope intact: this proxy should not
+	# substitute its own pages for the API's JSON responses.
+	reverse_proxy backend:8081 {
+		health_uri /actuator/health/readiness
+		health_interval 30s
+		health_timeout 5s
+	}
+
+	# Long-lived auction WebSockets must not be cut off by a short write timeout.
+	timeouts {
+		read_body 30s
+		idle 10m
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

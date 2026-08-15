@@ -10,7 +10,18 @@ import org.springframework.data.elasticsearch.annotations.Setting;
 
 import java.util.List;
 
-@Document(indexName = "ideas")
+/**
+ * Search projection of an idea.
+ *
+ * <p>{@code createIndex = false} is deliberate. With the default, Spring Data
+ * checks for (and creates) the index while the repository bean is being built, so
+ * an unreachable Elasticsearch aborts application startup — which would crash-loop
+ * the backend whenever the search cluster is slower to come up than the API, and
+ * contradicts the design where MySQL is the system of record and search is a
+ * derived read model. The index is instead created lazily and best-effort by
+ * {@code IdeaSearchService.ensureIndexExists()}.</p>
+ */
+@Document(indexName = "ideas", createIndex = false)
 @Setting(shards = 1, replicas = 0)
 public class IdeaDocument {
 

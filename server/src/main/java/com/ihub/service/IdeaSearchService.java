@@ -151,7 +151,12 @@ public class IdeaSearchService {
 
     /** Best-effort index write. See {@link #updateStatus} for the failure contract. */
     public void indexIdea(IdeaDocument doc) {
-        runQuietly("index idea " + doc.getId(), () -> repository.save(doc));
+        runQuietly("index idea " + doc.getId(), () -> {
+            // The index is no longer created at startup, so the first write after a
+            // fresh deployment has to create it.
+            ensureIndexExists();
+            repository.save(doc);
+        });
     }
 
     /** Best-effort index delete. See {@link #updateStatus} for the failure contract. */
@@ -167,6 +172,8 @@ public class IdeaSearchService {
      * @return the number of documents written
      */
     public int reindexAll(List<IdeaDocument> documents) {
+        ensureIndexExists();
+
         Set<Long> liveIds = documents.stream()
                 .map(IdeaDocument::getId)
                 .collect(Collectors.toSet());
@@ -180,6 +187,28 @@ public class IdeaSearchService {
         repository.saveAll(documents);
         log.info("Elasticsearch reindex complete: {} documents indexed", documents.size());
         return documents.size();
+    }
+
+    /**
+     * Creates the {@code ideas} index with its declared mapping if it is missing.
+     *
+     * <p>Index creation happens here rather than during repository bootstrap so a
+     * cold or unreachable Elasticsearch cannot prevent the application from
+     * starting. Safe to call repeatedly: it is a no-op once the index exists, and
+     * a failure is logged rather than propagated so incremental writes stay
+     * best-effort.</p>
+     */
+    private void ensureIndexExists() {
+        try {
+            var indexOps = elasticsearchOperations.indexOps(IdeaDocument.class);
+            if (!indexOps.exists()) {
+                indexOps.createWithMapping();
+                log.info("Created the Elasticsearch 'ideas' index with its declared mapping");
+            }
+        } catch (RuntimeException e) {
+            log.error("Could not create the Elasticsearch index; search stays unavailable "
+                    + "until the cluster is reachable", e);
+        }
     }
 
     /** True when Elasticsearch is reachable — used by the admin search-health endpoint. */
